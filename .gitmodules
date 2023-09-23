@@ -1,0 +1,5 @@
+
+[submodule "Dependencies/Cecil"]
+	path = Dependencies/Cecil
+	url = https://github.com/jbevain/cecil.git
+
