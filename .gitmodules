@@ -3,3 +3,6 @@
 	path = Dependencies/Cecil
 	url = https://github.com/jbevain/cecil.git
 
+[submodule "Dependencies/seepssefeu"]
+	path = Dependencies/seepssefeu
+	url = https://github.com/just-harry/seepssefeu
