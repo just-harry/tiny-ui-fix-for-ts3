@@ -19,10 +19,13 @@ $ToolsPath = Join-Path $PSScriptRoot Tools
 	LicencesPath = Join-Path $PSScriptRoot Licences
 	BuildRoot = $BuildRoot
 	BuildBinPath = Join-Path $BuildRoot Bin
+	BuildDataPath = Join-Path $BuildRoot Data
 	CecilPath = Join-Path $DependenciesPath Cecil
 	TinyUIFixPath = $TinyUIFixPath
 	TinyUIFixPatcherPath = Join-Path $TinyUIFixPath Patcher
 	TinyUIFixPatcherAssemblyPrefix = 'TinyUIFixForTS3Patcher'
+	TinyUIFixCoreBridgePath = Join-Path $TinyUIFixPath CoreBridge
+	TinyUIFixCoreBridgeAssemblyPrefix = 'TinyUIFixForTS3CoreBridge'
 	OpenSesamePath = Join-Path $ToolsPath OpenSesame
 }
 
