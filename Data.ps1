@@ -23,6 +23,7 @@ $ToolsPath = Join-Path $PSScriptRoot Tools
 	PackageRoot = Join-Path $BuildRoot Package
 	PackageSuffix = 'TinyUIFixForTS3'
 	CecilPath = Join-Path $DependenciesPath Cecil
+	SEEPSSEFEUPath = Join-Path $DependenciesPath seepssefeu
 	TinyUIFixPath = $TinyUIFixPath
 	TinyUIFixPatcherPath = Join-Path $TinyUIFixPath Patcher
 	TinyUIFixPatcherAssemblyPrefix = 'TinyUIFixForTS3Patcher'
