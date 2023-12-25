@@ -12,6 +12,7 @@ Param ()
 
 $DependenciesPath = Join-Path $PSScriptRoot Dependencies
 $BuildRoot = Join-Path $PSScriptRoot Build
+$TinyUIFixPath = Join-Path $PSScriptRoot TinyUIFixForTS3
 $ToolsPath = Join-Path $PSScriptRoot Tools
 
 [PSCustomObject] @{
@@ -19,6 +20,9 @@ $ToolsPath = Join-Path $PSScriptRoot Tools
 	BuildRoot = $BuildRoot
 	BuildBinPath = Join-Path $BuildRoot Bin
 	CecilPath = Join-Path $DependenciesPath Cecil
+	TinyUIFixPath = $TinyUIFixPath
+	TinyUIFixPatcherPath = Join-Path $TinyUIFixPath Patcher
+	TinyUIFixPatcherAssemblyPrefix = 'TinyUIFixForTS3Patcher'
 	OpenSesamePath = Join-Path $ToolsPath OpenSesame
 }
 
