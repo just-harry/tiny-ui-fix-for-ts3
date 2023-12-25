@@ -989,5 +989,329 @@ namespace TinyUIFixForTS3Patcher
 			}
 		}
 	}
+
+	public static class StyleSheetScaler
+	{
+		public const string floatFormatString = "{0:F9}";
+
+		static readonly Regex fontSizeValueRegEx = new Regex(@"^((?:[0-9]*\.)?[0-9]+)([a-zA-Z]+)?(.*)", RegexOptions.Compiled);
+		static readonly Regex lineSpacingValueRegEx = new Regex(@"^((?:[0-9]*\.)?[0-9]+)(.*)", RegexOptions.Compiled);
+
+		[ThreadStatic] static StringBuilder stringBuilder;
+
+		public static void InitialiseForCurrentThread ()
+		{
+			stringBuilder = new StringBuilder(30);
+		}
+
+		public static string ScaleStyleSheetBy (string css, float multiplier)
+		{
+			/* The style-sheets used for the text-styles in the Sims 3 are written in some bizarre CSS-but-not-quite language.
+			   We don't really care about parsing it. So long as we handle comments and string-literals, we can just
+			   passthrough anything we don't understand. Which is good, because we don't understand most of it. */
+
+			if (stringBuilder == null)
+			{
+				InitialiseForCurrentThread();
+			}
+
+			var rewritten = new StringBuilder(css.Length + 1024);
+			int index = 0;
+			int length = css.Length;
+
+			int blockDepth = 0;
+			int propertyStartOffset = 0;
+			int propertyEndOffset = 0;
+			int valueStartOffset = 0;
+			int valueEndOffset = 0;
+			int declarationStage = 0;
+			int rewrittenIndexDelta = 0;
+
+			char c;
+
+			for (;;)
+			{
+				if (declarationStage == 4)
+				{
+					declarationStage = 0;
+
+					string rewrittenValue = null;
+					int valueLength = 0;
+
+					if (string.Compare(css, propertyStartOffset, "font-size", 0, propertyEndOffset - propertyStartOffset) == 0)
+					{
+						valueLength = valueEndOffset - valueStartOffset;
+						var matches = fontSizeValueRegEx.Match(css, valueStartOffset, valueLength);
+
+						if (matches.Success)
+						{
+							stringBuilder.Clear();
+							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value) * multiplier);
+							stringBuilder.Append(matches.Groups[2].Value);
+							stringBuilder.Append(matches.Groups[3].Value);
+							rewrittenValue = stringBuilder.ToString();
+						}
+					}
+					else if (string.Compare(css, propertyStartOffset, "line-spacing", 0, propertyEndOffset - propertyStartOffset) == 0)
+					{
+						valueLength = valueEndOffset - valueStartOffset;
+						var matches = fontSizeValueRegEx.Match(css, valueStartOffset, valueLength);
+
+						if (matches.Success)
+						{
+							stringBuilder.Clear();
+							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value) * multiplier);
+							stringBuilder.Append(matches.Groups[2].Value);
+							rewrittenValue = stringBuilder.ToString();
+						}
+					}
+
+					if (rewrittenValue != null)
+					{
+						int adjustedValueStartOffset = valueStartOffset + rewrittenIndexDelta;
+
+						rewritten.Remove(adjustedValueStartOffset, valueLength);
+						rewritten.Insert(adjustedValueStartOffset, rewrittenValue);
+
+						rewrittenIndexDelta += rewrittenValue.Length - valueLength;
+					}
+				}
+
+				if (index >= length)
+				{
+					break;
+				}
+
+				c = css[index];
+
+				if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f')
+				{
+					rewritten.Append(c);
+					++index;
+
+					continue;
+				}
+
+				if (c == '/')
+				{
+					rewritten.Append(c);
+					++index;
+
+					if (index >= length) {goto endOfCodeUnits;}
+
+					c = css[index];
+
+					if (c == '/')
+					{
+						rewritten.Append(c);
+						++index;
+
+						do
+						{
+							if (index >= length) {goto endOfCodeUnits;}
+
+							c = css[index];
+							rewritten.Append(c);
+							++index;
+						}
+						while (c != '\n' && c != '\r' && c != '\f');
+					}
+					else if (c == '*')
+					{
+						for (;;)
+						{
+							rewritten.Append(c);
+							++index;
+
+							if (index >= length) {goto endOfCodeUnits;}
+
+							c = css[index];
+
+							if (c == '*')
+							{
+								rewritten.Append(c);
+								++index;
+
+								if (index >= length) {goto endOfCodeUnits;}
+
+								c = css[index];
+
+								if (c == '/')
+								{
+									rewritten.Append(c);
+									++index;
+
+									break;
+								}
+							}
+						}
+					}
+
+					continue;
+				}
+
+				if (c == '"')
+				{
+					for (;;)
+					{
+						rewritten.Append(c);
+						++index;
+
+						if (index >= length) {goto endOfCodeUnits;}
+
+						c = css[index];
+
+						if (c == '\\')
+						{
+							rewritten.Append(c);
+							++index;
+
+							if (index >= length) {goto endOfCodeUnits;}
+
+							c = css[index];
+
+							continue;
+						}
+
+						if (c == '"')
+						{
+							rewritten.Append(c);
+							++index;
+
+							break;
+						}
+					}
+
+					continue;
+				}
+
+				if (c == '\\')
+				{
+					for (;;)
+					{
+						rewritten.Append(c);
+						++index;
+
+						if (index >= length) {goto endOfCodeUnits;}
+
+						c = css[index];
+
+						if (c == '\\')
+						{
+							rewritten.Append(c);
+							++index;
+
+							if (index >= length) {goto endOfCodeUnits;}
+
+							c = css[index];
+
+							continue;
+						}
+
+						if (c == '\\')
+						{
+							rewritten.Append(c);
+							++index;
+
+							break;
+						}
+					}
+
+					continue;
+				}
+
+				if (c == '{')
+				{
+					++blockDepth;
+
+					rewritten.Append(c);
+					++index;
+
+					continue;
+				}
+
+				if (c == '}')
+				{
+					if (blockDepth > 0)
+					{
+						--blockDepth;
+					}
+
+					declarationStage = declarationStage == 3 ? 4 : 0;
+
+					rewritten.Append(c);
+					++index;
+
+					continue;
+				}
+
+				if (blockDepth == 0)
+				{
+					rewritten.Append(c);
+					++index;
+
+					continue;
+				}
+
+				if (c == ';')
+				{
+					declarationStage = declarationStage == 3 ? 4 : 0;
+
+					rewritten.Append(c);
+					++index;
+
+					continue;
+				}
+
+				if (c == ':')
+				{
+					declarationStage = 2;
+
+					rewritten.Append(c);
+					++index;
+
+					continue;
+				}
+
+				if (declarationStage <= 1)
+				{
+					if (declarationStage == 0)
+					{
+						declarationStage = 1;
+						propertyStartOffset = index;
+					}
+
+					rewritten.Append(c);
+					++index;
+
+					propertyEndOffset = index;
+
+					continue;
+				}
+
+				if (declarationStage >= 2)
+				{
+					if (declarationStage == 2)
+					{
+						declarationStage = 3;
+						valueStartOffset = index;
+					}
+
+					rewritten.Append(c);
+					++index;
+
+					valueEndOffset = index;
+
+					continue;
+				}
+
+				rewritten.Append(c);
+				++index;
+			}
+		endOfCodeUnits: {}
+
+			return rewritten.ToString();
+		}
+	}
 }
 
