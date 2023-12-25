@@ -1313,5 +1313,309 @@ namespace TinyUIFixForTS3Patcher
 			return rewritten.ToString();
 		}
 	}
+
+	public static class AssemblyScaling
+	{
+		public class PrimitiveAssemblyResolver : IAssemblyResolver
+		{
+			public Dictionary<ValueTuple<String, Version>, AssemblyDefinition> assemblies;
+
+			public PrimitiveAssemblyResolver ()
+			{
+				this.assemblies = new Dictionary<ValueTuple<String, Version>, AssemblyDefinition>();
+			}
+
+			public AssemblyDefinition Resolve (ValueTuple<String, Version> key)
+			{
+				AssemblyDefinition assembly;
+				this.assemblies.TryGetValue(key, out assembly);
+
+				return assembly;
+			}
+
+			public AssemblyDefinition Resolve (AssemblyNameReference name)
+			{
+				return this.Resolve(KeyFor(name));
+			}
+
+			public AssemblyDefinition Resolve (AssemblyNameReference name, ReaderParameters parameters)
+			{
+				return this.Resolve(name);
+			}
+
+			public void Dispose ()
+			{}
+
+			public static ValueTuple<String, Version> KeyFor (AssemblyNameReference name)
+			{
+				return new ValueTuple<String, Version>(name.Name, name.Version);
+			}
+
+			public static ValueTuple<String, Version> KeyFor (AssemblyDefinition assembly)
+			{
+				return KeyFor(assembly.Name);
+			}
+
+			public ValueTuple<String, Version> Add (AssemblyDefinition assembly)
+			{
+				var key = KeyFor(assembly);
+				this.assemblies[key] = assembly;
+				return key;
+			}
+
+			public ValueTuple<String, Version> Add (Stream assembly)
+			{
+				return this.Add(AssemblyDefinition.ReadAssembly(assembly));
+			}
+		}
+
+		public static class AssemblyInspection
+		{
+			public static IEnumerable<TypeDefinition> DescendantTypesOf (TypeDefinition type)
+			{
+				return type.NestedTypes.SelectMany(t => DescendantTypesOf(t).Prepend(t));
+			}
+
+			public static IEnumerable<TypeDefinition> DescendantTypesOf (ModuleDefinition module)
+			{
+				return module.Types.SelectMany(t => DescendantTypesOf(t).Prepend(t));
+			}
+
+			public static IEnumerable<TypeDefinition> DescendantTypesOf (AssemblyDefinition assembly)
+			{
+				return assembly.Modules.SelectMany(DescendantTypesOf);
+			}
+
+			public static IEnumerable<TypeDefinition> DescendantTypesOf (IEnumerable<AssemblyDefinition> assemblies)
+			{
+				return assemblies.SelectMany(DescendantTypesOf);
+			}
+
+			public static IEnumerable<MethodDefinition> MethodDefinitionsOf (TypeDefinition type)
+			{
+				return type.Methods.Concat(type.Properties.SelectMany(MethodDefinitionsOf));
+			}
+
+			public static IEnumerable<MethodDefinition> MethodDefinitionsOf (PropertyDefinition property)
+			{
+				var methods = Enumerable.Empty<MethodDefinition>();
+				if (property.GetMethod != null) methods.Append(property.GetMethod);
+				if (property.SetMethod != null) methods.Append(property.SetMethod);
+
+				return methods;
+			}
+
+			public static IEnumerable<MethodDefinition> MethodDefinitionsOf (ModuleDefinition module)
+			{
+				return DescendantTypesOf(module).SelectMany(MethodDefinitionsOf);
+			}
+
+			public static IEnumerable<MethodDefinition> MethodDefinitionsOf (AssemblyDefinition assembly)
+			{
+				return assembly.Modules.SelectMany(MethodDefinitionsOf);
+			}
+
+			public static IEnumerable<MethodDefinition> MethodDefinitionsOf (IEnumerable<AssemblyDefinition> assemblies)
+			{
+				return assemblies.SelectMany(MethodDefinitionsOf);
+			}
+		}
+
+		public static class MethodInspection
+		{
+			public static IEnumerable<Instruction> CallsIn (MethodBody method)
+			{
+				return method.Instructions.Where(i => (i.OpCode.Code == Code.Call) | (i.OpCode.Code == Code.Callvirt));
+			}
+		}
+
+		public static class OpCodeInspection
+		{
+			internal static readonly sbyte[] stackDepthChangeEffectedByOpCodes = InitialiseStackDepthChangeEffectedByOpCodes();
+
+			private static sbyte[] InitialiseStackDepthChangeEffectedByOpCodes ()
+			{
+				var stackBehaviours = Enum.GetValues(typeof(StackBehaviour));
+				var stackDepthChanges = new sbyte[stackBehaviours.Cast<int>().Max() + 1];
+
+				stackDepthChanges[(int) StackBehaviour.Pop0] = 0;
+				stackDepthChanges[(int) StackBehaviour.Pop1] = -1;
+				stackDepthChanges[(int) StackBehaviour.Pop1_pop1] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popi] = -1;
+				stackDepthChanges[(int) StackBehaviour.Popi_pop1] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popi_popi] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popi_popi8] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popi_popi_popi] = -3;
+				stackDepthChanges[(int) StackBehaviour.Popi_popr4] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popi_popr8] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popref] = -1;
+				stackDepthChanges[(int) StackBehaviour.Popref_pop1] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popref_popi] = -2;
+				stackDepthChanges[(int) StackBehaviour.Popref_popi_popi] = -3;
+				stackDepthChanges[(int) StackBehaviour.Popref_popi_popi8] = -3;
+				stackDepthChanges[(int) StackBehaviour.Popref_popi_popr4] = -3;
+				stackDepthChanges[(int) StackBehaviour.Popref_popi_popr8] = -3;
+				stackDepthChanges[(int) StackBehaviour.Popref_popi_popref] = -3;
+				stackDepthChanges[(int) StackBehaviour.PopAll] = -128;
+				stackDepthChanges[(int) StackBehaviour.Push0] = 0;
+				stackDepthChanges[(int) StackBehaviour.Push1] = +1;
+				stackDepthChanges[(int) StackBehaviour.Push1_push1] = +2;
+				stackDepthChanges[(int) StackBehaviour.Pushi] = +1;
+				stackDepthChanges[(int) StackBehaviour.Pushi8] = +1;
+				stackDepthChanges[(int) StackBehaviour.Pushr4] = +1;
+				stackDepthChanges[(int) StackBehaviour.Pushr8] = +1;
+				stackDepthChanges[(int) StackBehaviour.Pushref] = +1;
+				stackDepthChanges[(int) StackBehaviour.Varpop] = -128;
+				stackDepthChanges[(int) StackBehaviour.Varpush] = -128;
+
+				return stackDepthChanges;
+			}
+
+			public static bool StaticallyKnownStackDepthChangeEffectedBy (StackBehaviour behaviour, out int effect)
+			{
+				effect = stackDepthChangeEffectedByOpCodes[(int) behaviour];
+
+				return effect != -128;
+			}
+
+			public static bool StaticallyKnownStackDepthChangeEffectedBy (StackBehaviour push, StackBehaviour pop, out int effect)
+			{
+				effect = stackDepthChangeEffectedByOpCodes[(int) push] + stackDepthChangeEffectedByOpCodes[(int) pop];
+
+				return effect > -126;
+			}
+
+			public static bool StaticallyKnownStackDepthChangeEffectedBy (OpCode opcode, out int effect)
+			{
+				return StaticallyKnownStackDepthChangeEffectedBy(opcode.StackBehaviourPush, opcode.StackBehaviourPop, out effect);
+			}
+
+			public static bool StaticallyKnownStackDepthChangeEffectedBy (Instruction instruction, out int effect)
+			{
+				if (instruction.OpCode.FlowControl == FlowControl.Call)
+				{
+					if (instruction.OpCode.Code == Code.Calli)
+					{
+						effect = -128;
+
+						return false;
+					}
+
+					var method = instruction.Operand as MethodReference;
+
+					if (!StaticallyKnownStackDepthChangeEffectedBy(instruction.OpCode.StackBehaviourPush, out effect))
+					{
+						effect = method.ReturnType != method.Module.TypeSystem.Void ? 1 : 0;
+					}
+
+					effect -= method.HasThis ? 1 : 0;
+					effect -= method.Parameters.Count;
+
+					return true;
+				}
+				else
+				{
+					return StaticallyKnownStackDepthChangeEffectedBy(instruction.OpCode, out effect);
+				}
+			}
+		}
+
+		public static class InstructionPatching
+		{
+			public static void ReplaceBranchTargetsIn (IEnumerable<Instruction> instructions, Instruction from, Instruction to)
+			{
+				foreach (var instruction in instructions)
+				{
+					var operandType = instruction.OpCode.OperandType;
+
+					if ((operandType == OperandType.InlineBrTarget) | (operandType == OperandType.ShortInlineBrTarget))
+					{
+						if (instruction.Operand as Instruction == from)
+						{
+							instruction.Operand = to;
+						}
+					}
+				}
+			}
+		}
+
+		public class CallersOfGraph
+		{
+			public Dictionary<MethodDefinition, HashSet<MethodReference>> graph;
+
+			public CallersOfGraph ()
+			{
+				this.graph = new Dictionary<MethodDefinition, HashSet<MethodReference>>();
+			}
+
+			public HashSet<MethodReference> CallersOf (MethodDefinition method)
+			{
+				HashSet<MethodReference> callers;
+				this.graph.TryGetValue(method, out callers);
+
+				return callers;
+			}
+
+			public HashSet<MethodReference> CallersOf (MethodReference method)
+			{
+				return this.CallersOf(method.Resolve());
+			}
+
+			public static CallersOfGraph For (IEnumerable<MethodDefinition> methods)
+			{
+				var callersOf = new CallersOfGraph();
+
+				foreach (var caller in methods)
+				{
+					if (!caller.HasBody)
+					{
+						continue;
+					}
+
+					foreach (var call in MethodInspection.CallsIn(caller.Body))
+					{
+						var callee = ((MethodReference) call.Operand).Resolve();
+
+						if (callee == null)
+						{
+							continue;
+						}
+
+						HashSet<MethodReference> knownCallers = null;
+
+						if (!callersOf.graph.TryGetValue(callee, out knownCallers))
+						{
+							knownCallers = new HashSet<MethodReference>();
+							callersOf.graph[callee] = knownCallers;
+						}
+
+						knownCallers.Add(caller);
+					}
+				}
+
+				return callersOf;
+			}
+		}
+
+		public static uint ReinterpretAsUnsigned (int value)
+		{
+			return unchecked((uint) value);
+		}
+
+		public static ulong ReinterpretAsUnsigned (long value)
+		{
+			return unchecked((ulong) value);
+		}
+
+		public static int ReinterpretAsSigned (uint value)
+		{
+			return unchecked((int) value);
+		}
+
+		public static long ReinterpretAsSigned (ulong value)
+		{
+			return unchecked((long) value);
+		}
+	}
 }
 
