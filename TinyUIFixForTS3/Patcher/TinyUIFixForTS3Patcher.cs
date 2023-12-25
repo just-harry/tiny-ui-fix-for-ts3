@@ -1314,6 +1314,154 @@ namespace TinyUIFixForTS3Patcher
 		}
 	}
 
+	public static class ResourceManipulator
+	{
+		static Dictionary<uint, uint> testDictionary;
+
+		static ResourceManipulator ()
+		{
+			testDictionary = new Dictionary<uint, uint>();
+		}
+
+		public struct FoundResources <IResourceKey, ConstructableResourceKey>
+		where ConstructableResourceKey : IResourceKey
+		{
+			public Dictionary<IResourceKey, string> byKey;
+			public Dictionary<uint, Dictionary<ConstructableResourceKey, string>> byResourceType;
+			public Dictionary<object, Dictionary<ConstructableResourceKey, string>> byCondition;
+		}
+
+		public static FoundResources<IResourceKey, ConstructableResourceKey> FindResourcesAcrossPackages <IResourceKey, ConstructableResourceKey, IPackage> (
+			Dictionary<ulong, IEnumerable<Object>> prioritisedFiles,
+			DirectoryInfo baseDirectory,
+			HashSet<IResourceKey> byKey,
+			uint[] byResourceType,
+			ValueTuple<object, Func<IPackage, IResourceKey, bool>>[] byCondition,
+			Func<int, string, bool, IPackage> openPackage,
+			Action<int, IPackage> closePackage,
+			Func<IPackage, IEnumerable<IResourceKey>> getResourceListOfPackage,
+			Func<IResourceKey, ulong> getInstanceOfResourceKey,
+			Func<IResourceKey, uint> getResourceTypeOfResourceKey,
+			Func<IResourceKey, uint> getResourceGroupOfResourceKey,
+			Func<IResourceKey, ConstructableResourceKey> constructResourceKey,
+			Action<Exception> logWarning
+		)
+		where ConstructableResourceKey : IResourceKey
+		{
+			var foundByKey = new Dictionary<IResourceKey, string>(byKey.Count);
+			var foundByResourceType = new Dictionary<uint, Dictionary<ConstructableResourceKey, string>>(byResourceType.Length);
+			var foundByCondition = new Dictionary<object, Dictionary<ConstructableResourceKey, string>>();
+
+			foreach (uint resourceType in byResourceType)
+			{
+				foundByResourceType[resourceType] = new Dictionary<ConstructableResourceKey, string>();
+			}
+
+			var priorities = prioritisedFiles.Keys.ToArray();
+			Array.Sort(priorities, (a, b) => b.CompareTo(a));
+
+			foreach (var priority in priorities)
+			{
+				var files = prioritisedFiles[priority];
+
+				foreach (var file in files)
+				{
+					string filePath = file is string ? Path.Combine(baseDirectory.FullName, file as string) : (file as FileInfo).FullName;
+
+					try
+					{
+						IPackage package = openPackage(1, filePath, false);
+
+						try
+						{
+							foreach (var entry in getResourceListOfPackage(package))
+							{
+								foreach (var key in byKey)
+								{
+									if (
+										   getInstanceOfResourceKey(key) == getInstanceOfResourceKey(entry)
+										&& getResourceTypeOfResourceKey(key) == getResourceTypeOfResourceKey(entry)
+										&& getResourceGroupOfResourceKey(key) == getResourceGroupOfResourceKey(entry)
+									)
+									{
+										foundByKey[key] = filePath;
+
+										byKey.Remove(key);
+
+										goto examinedEntry;
+									}
+								}
+
+								foreach (var resourceType in byResourceType)
+								{
+									if (resourceType == getResourceTypeOfResourceKey(entry))
+									{
+										Dictionary<ConstructableResourceKey, string> found = null;
+
+										foundByResourceType.TryGetValue(resourceType, out found);
+
+										ConstructableResourceKey key = constructResourceKey(entry);
+
+										if (!found.ContainsKey(key))
+										{
+											found.Add(key, filePath);
+										}
+
+										goto examinedEntry;
+									}
+								}
+
+								foreach (var condition in byCondition)
+								{
+									if (condition.Item2(package, entry))
+									{
+										Dictionary<ConstructableResourceKey, string> found = null;
+
+										if (!foundByCondition.TryGetValue(condition.Item1, out found))
+										{
+											found = new Dictionary<ConstructableResourceKey, string>();
+											foundByCondition[condition.Item1] = found;
+										}
+
+										ConstructableResourceKey key = constructResourceKey(entry);
+
+										if (!found.ContainsKey(key))
+										{
+											found.Add(key, filePath);
+										}
+
+										goto examinedEntry;
+									}
+								}
+							examinedEntry: {}
+							}
+						}
+						finally
+						{
+							closePackage(1, package);
+						}
+					}
+					catch (Exception error)
+					{
+						logWarning(error);
+					}
+
+					if (foundByResourceType.Count <= 0 && byCondition.Length <= 0 && byKey.Count <= 0)
+					{
+						goto finishedSearchingPackages;
+					}
+				}
+			}
+		finishedSearchingPackages: {}
+
+			return new FoundResources<IResourceKey, ConstructableResourceKey>{
+				byKey = foundByKey,
+				byResourceType = foundByResourceType,
+				byCondition = foundByCondition
+			};
+		}
+	}
+
 	public static class AssemblyScaling
 	{
 		public class PrimitiveAssemblyResolver : IAssemblyResolver
