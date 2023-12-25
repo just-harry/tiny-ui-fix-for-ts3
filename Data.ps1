@@ -12,11 +12,13 @@ Param ()
 
 $DependenciesPath = Join-Path $PSScriptRoot Dependencies
 $BuildRoot = Join-Path $PSScriptRoot Build
+$ToolsPath = Join-Path $PSScriptRoot Tools
 
 [PSCustomObject] @{
 	LicencesPath = Join-Path $PSScriptRoot Licences
 	BuildRoot = $BuildRoot
 	BuildBinPath = Join-Path $BuildRoot Bin
 	CecilPath = Join-Path $DependenciesPath Cecil
+	OpenSesamePath = Join-Path $ToolsPath OpenSesame
 }
 
