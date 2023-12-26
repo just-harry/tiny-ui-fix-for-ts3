@@ -491,21 +491,33 @@ namespace TinyUIFixForTS3.UI
 					{
 						var window = pair.Value;
 
+						if (window.Disposed)
+						{
+							goto removeWindowHandle;
+						}
+
+						if (!window.Visible)
+						{
+							continue;
+						}
+
 						if (
-							   window.Disposed
-							|| (
-								  window is Scrollbar scrollbar
-								? ScaledScrollbarMimic.GlomOntoScrollbar(scrollbar) != null
-								: (
-									  window is Slider slider
-									? ScaledSliderMimic.GlomOntoSlider(slider) != null
-									: ScaledScrollbarMimic.GlomOntoScrollbarsOfTextEdit(window as TextEdit) >= 0
-								)
+							  window is Scrollbar scrollbar
+							? ScaledScrollbarMimic.GlomOntoScrollbar(scrollbar) != null
+							: (
+								  window is Slider slider
+								? ScaledSliderMimic.GlomOntoSlider(slider) != null
+								: ScaledScrollbarMimic.GlomOntoScrollbarsOfTextEdit(window as TextEdit) >= 0
 							)
 						)
 						{
-							windowHandlesToRemove.Add(pair.Key);
+							goto removeWindowHandle;
 						}
+
+						continue;
+
+					removeWindowHandle: {}
+						windowHandlesToRemove.Add(pair.Key);
 					}
 
 					foreach (var key in windowHandlesToRemove)
