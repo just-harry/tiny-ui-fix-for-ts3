@@ -890,7 +890,7 @@ function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [S
 
 	if ($Null -eq $ModsDirectory)
 	{
-		[TinyUIFixPSForTS3]::WriteLineQuickly("A `"Mods`" folder could not be found `"$ExpectedModsDirectoryPath`".")
+		Write-Warning "A `"Mods`" folder could not be found `"$ExpectedModsDirectoryPath`"." -WarningAction Continue
 
 		return $Result
 	}
@@ -900,7 +900,7 @@ function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [S
 
 	if (-not (Test-Path -LiteralPath $ModsResourceCFGPath))
 	{
-		[TinyUIFixPSForTS3]::WriteLineQuickly("A `"Resource.cfg`" file could not be found `"$ModsResourceCFGPath`".")
+		Write-Warning "A `"Resource.cfg`" file could not be found `"$ModsResourceCFGPath`"." -WarningAction Continue
 
 		return $Result
 	}
@@ -4201,6 +4201,8 @@ $OverridesPath = Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Mods/Ove
 
 if ($Null -eq $ResolvedResourcesPriorities.ModsDirectory)
 {
+	Write-Warning "Your installation of The Sims 3 does not seem to have been set-up for installing packages.$([Environment]::NewLine)Please refer to this article: https://modthesims.info/wiki.php?title=Game_Help%3AInstalling_Sims_3_Package_Files%2FSetup_and_Files" -WarningAction Continue
+
 	New-Item -ItemType Directory -Force -Path $OverridesPath -ErrorAction Stop > $Null
 }
 
