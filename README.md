@@ -121,9 +121,7 @@ If you are a mod author and you would like to make your mod compatible with the 
 
 ## Known issues
 
-If an issue is struck-out that denotes that the issue was fixed in the latest version of the patch.
-
-- ~~Opening a family tree dialog can cause the game to freeze.~~
+- Opening an NRaas Master Controller enhanced family-tree dialog will cause the game to freeze, even when the `CompatibilityPatchesForNRaasMods` patchset is active.
 - Some icons and graphics are visually stretched in one dimension.
 - Some icons disappear when they are selected.
 - Scrollbars that would usually scroll smoothly when the arrows are clicked do not scroll smoothly.
