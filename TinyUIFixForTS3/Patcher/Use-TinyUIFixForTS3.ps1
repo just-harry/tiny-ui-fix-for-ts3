@@ -1675,7 +1675,10 @@ function Apply-PatchesToResources (
 		$XML = [Xml.XmlDocument]::new()
 		$XML.Load($XMLResource.Stream)
 
-		& $Edit $XML > $Null
+		if (-not (& $Edit $XML))
+		{
+			return $Null
+		}
 
 		$NewXMLResource = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::LAYOTypeID)
 
@@ -1701,7 +1704,7 @@ function Apply-PatchesToResources (
 
 	$ApplyPatch = `
 	{
-		Param ($Category, [s3pi.Interfaces.IResourceIndexEntry] $IndexEntry, [s3pi.Package.Package] $FromPackage)
+		Param ($Category, [s3pi.Interfaces.IResourceIndexEntry] $IndexEntry, [s3pi.Package.Package] $FromPackage, $PackageSource)
 
 		if ($Category -ceq [TinyUIFixPSForTS3]::LAYOTypeID)
 		{
@@ -1717,10 +1720,19 @@ function Apply-PatchesToResources (
 					-and $StyleGuideLayoutResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
 				)
 				{
-					return
+					return $False
 				}
 
-				$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Configuration.Nucleus.UIScale, $State.RegisteredExtraLayoutScalers)
+				try
+				{
+					$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Configuration.Nucleus.UIScale, $State.RegisteredExtraLayoutScalers)
+				}
+				catch
+				{
+					Write-Warning "An error occurred when scaling the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$($_.Exception)" -WarningAction Continue
+
+					return $False
+				}
 
 				foreach ($LayoutWinProcs in $Result.scrollbarLayoutWinProcsByControlID, $Result.sliderLayoutWinProcsByControlID)
 				{
@@ -1737,6 +1749,8 @@ function Apply-PatchesToResources (
 						$WinProcLayouts.AddRange($WinProcLayoutsByControlID.Value)
 					}
 				}
+
+				$True
 			}
 
 			1
@@ -1801,15 +1815,15 @@ function Apply-PatchesToResources (
 
 				foreach ($Resource in $Resources.GetEnumerator())
 				{
-					$IndexEntry, $CountIndex = & $ApplyPatch $Resource.Item1 $Resource.Item2 -FromPackage $Package
+					$IndexEntry, $CountIndex = & $ApplyPatch $Resource.Item1 $Resource.Item2 -FromPackage $Package $Entry.Key
 
 					if ($Null -ne $IndexEntry)
 					{
 						$IndexEntry.Compressed = if ($Uncompressed) {0} else {0xffff}
 						$IndexEntry
-					}
 
-					++$ScaledCounts[$CountIndex]
+						++$ScaledCounts[$CountIndex]
+					}
 				}
 			},
 			{Param ($Package) [s3pi.Package.Package]::ClosePackage(1, $Package)}
