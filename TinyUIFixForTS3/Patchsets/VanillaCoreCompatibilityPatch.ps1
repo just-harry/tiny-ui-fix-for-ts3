@@ -8,7 +8,7 @@
 #>
 
 $ID = 'VanillaCoreCompatibilityPatch'
-$Version = '1.0.0'
+$Version = '1.0.1'
 $PatchsetDefinitionSchemaVersion = 1
 
 ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $Now.Day -eq 25) {'<hr>Merry Christmas! :)'} else {''})
