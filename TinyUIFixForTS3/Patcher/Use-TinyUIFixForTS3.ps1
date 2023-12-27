@@ -37,6 +37,9 @@ Param (
 			[Switch] $GenerateUncompressedPackage,
 
 	[Parameter()]
+			[Switch] $ChangeResourceCFGToLoadTinyUIFixLast,
+
+	[Parameter()]
 			[Switch] $SkipConfigurator,
 
 	[Parameter()]
@@ -284,7 +287,10 @@ class TinyUIFixForTS3Logger
 class TinyUIFixPSForTS3
 {
 	static [Version] $Version = [Version]::new(1, 0, 4)
+
 	static [String] $GeneratedPackageName = 'tiny-ui-fix.package'
+	static [String] $ModsFolderName = 'TinyUIFix'
+	static [String] $GeneratePackagePackedFileDirective = "$([TinyUIFixPSForTS3]::ModsFolderName)/$([TinyUIFixPSForTS3]::GeneratedPackageName)"
 	static [Int32] $MaximumPatchsetConfigurationFileDepth = 90
 
 	static [UInt32] $GroupID = 2223337553
@@ -851,7 +857,7 @@ function Find-ResourcesAcrossPackages (
 }
 
 
-function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [String] $Sims3UserDataPath, [ScriptBlock] $TransformGameBinResourceCFG, [Switch] $IsMacOSInstallation)
+function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [String] $Sims3UserDataPath, [ScriptBlock] $TransformGameBinResourceCFG, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage)
 {
 	[TinyUIFixPSForTS3]::WriteLineQuickly("Resolving the resource priorities for the Sims 3 installation at `"$Sims3Path`" with the user-data at `"$Sims3UserDataPath`".")
 
@@ -927,7 +933,7 @@ function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [S
 
 	$ModPriorities = [TinyUIFixPSForTS3]::ResolveResourcePriorities(
 		[TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG([String[]] $ModsResourceCFG),
-		[String[]] @([TinyUIFixPSForTS3]::GeneratedPackageName),
+		[String[]] @($(if (-not $IncludeTinyUIFixPackage) {[TinyUIFixPSForTS3]::GeneratedPackageName})),
 		$ModsDirectory,
 		$True,
 		0
@@ -957,6 +963,53 @@ function Find-ResourcesToPatch ([PSCustomObject] $ResolvedResourcesPriorities)
 		-ByKey ([Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new()) `
 		-ByResourceType @([TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::S3SATypeID, [TinyUIFixPSForTS3]::_CSSTypeID) `
 		-ByCondition @()
+}
+
+
+function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
+{
+	$ResourcesByPackage = [Collections.Generic.Dictionary[String, Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]]::new()
+
+	$CategoriseResources = `
+	{
+		Param ($Category, $ResourcesByKey)
+
+		foreach ($Entry in $ResourcesByKey.GetEnumerator())
+		{
+			$Resources = $ResourcesByPackage[$Entry.Value]
+
+			if ($Null -eq $Resources)
+			{
+				$Resources = [Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]::new()
+				$ResourcesByPackage[$Entry.Value] = $Resources
+			}
+
+			$Resources[$Entry.Key] = $Category
+		}
+	}
+
+	$CategorisedCount = ($ResourcesToPatch.ByKey.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by resource-key.")
+
+	& $CategoriseResources ByKey $ResourcesToPatch.ByKey
+
+	$CategorisedCount = ($ResourcesToPatch.ByResourceType.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by resource-type.")
+
+	foreach ($ResourceType in $ResourcesToPatch.ByResourceType.GetEnumerator())
+	{
+		& $CategoriseResources $ResourceType.Key $ResourceType.Value
+	}
+
+	$CategorisedCount = ($ResourcesToPatch.ByCondition.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by condition.")
+
+	foreach ($Condition in $ResourcesToPatch.ByCondition.GetEnumerator())
+	{
+		& $CategoriseResources $Condition.Key $Condition.Value
+	}
+
+	$ResourcesByPackage
 }
 
 
@@ -1486,12 +1539,14 @@ function New-TinyUIFixForTS3IntegrationType ([String] $Namespace, [Mono.Cecil.Mo
 
 function Apply-PatchesToResources (
 	[PSCustomObject] $UnpatchedResources,
+	$UnpatchedResourcesByPackage,
 	$State,
 	$OutputUnpackedAssemblyDirectoryPath,
 	[Switch] $Uncompressed
 )
 {
 	$State.UnpatchedResources = $UnpatchedResources
+	$State.UnpatchedResourcesByPackage = $UnpatchedResourcesByPackage
 
 	$Patchsets = [Object[]] $State.Patchsets.Values
 	$PatchsetsRetro = [Object[]]::new($Patchsets.Length)
@@ -1584,46 +1639,7 @@ function Apply-PatchesToResources (
 	}
 
 
-	$ResourcesByPackage = [Collections.Generic.Dictionary[String, Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]]::new()
-
-	$CategoriseResources = `
-	{
-		Param ($Category, $ResourcesByKey)
-
-		foreach ($Entry in $ResourcesByKey.GetEnumerator())
-		{
-			$Resources = $ResourcesByPackage[$Entry.Value]
-
-			if ($Null -eq $Resources)
-			{
-				$Resources = [Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]::new()
-				$ResourcesByPackage[$Entry.Value] = $Resources
-			}
-
-			$Resources[$Entry.Key] = $Category
-		}
-	}
-
-	$CategorisedCount = ($State.UnpatchedResources.ByKey.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by resource-key.")
-
-	& $CategoriseResources ByKey $State.UnpatchedResources.ByKey
-
-	$CategorisedCount = ($State.UnpatchedResources.ByResourceType.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by resource-type.")
-
-	foreach ($ResourceType in $State.UnpatchedResources.ByResourceType.GetEnumerator())
-	{
-		& $CategoriseResources $ResourceType.Key $ResourceType.Value
-	}
-
-	$CategorisedCount = ($State.UnpatchedResources.ByCondition.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by condition.")
-
-	foreach ($Condition in $State.UnpatchedResources.ByCondition.GetEnumerator())
-	{
-		& $CategoriseResources $Condition.Key $Condition.Value
-	}
+	$ResourcesByPackage = $UnpatchedResourcesByPackage
 
 
 	$AssemblyStreams = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, IO.MemoryStream]]::new(8)
@@ -3364,12 +3380,13 @@ function Test-Sims3UserDataPath ($Sims3UserDataPath)
 }
 
 
-function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ([String] $Sims3Path, [String] $Sims3UserDataPath, [Switch] $IsMacOSInstallation)
+function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ([String] $Sims3Path, [String] $Sims3UserDataPath, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage)
 {
 	Resolve-ResourcePrioritiesForSims3Installation `
 		-Sims3Path $Sims3Path `
 		-Sims3UserDataPath $Sims3UserDataPath `
 		-IsMacOSInstallation:$IsMacOSInstallation `
+		-IncludeTinyUIFixPackage:$IncludeTinyUIFixPackage `
 		-TransformGameBinResourceCFG `
 		{
 			Param ($Lines)
@@ -3383,21 +3400,21 @@ function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ([String] $S
 }
 
 
-function New-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $State, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
+function New-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $UnpatchedResourcesByPackage, $State, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
 {
 	$Package = [s3pi.Package.Package]::NewPackage(1)
 
 	$State.IntoPackage = $Package
 
-	Apply-PatchesToResources $UnpatchedResources $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed > $Null
+	Apply-PatchesToResources $UnpatchedResources $UnpatchedResourcesByPackage $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed > $Null
 	$Package
 }
 
 
-function Write-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
+function Write-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $UnpatchedResourcesByPackage, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
 {
 	[TinyUIFixPSForTS3]::UseDisposable(
-		{New-PackageWithPatchedResources $UnpatchedResources $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed},
+		{New-PackageWithPatchedResources $UnpatchedResources $UnpatchedResourcesByPackage $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed},
 		{
 			Param ($Package)
 
@@ -3412,8 +3429,11 @@ function Write-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources
 
 function Write-PackageForSims3Installation ([String] $Sims3Path, [String] $Sims3UserDataPath, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed, [Switch] $IsMacOSInstallation)
 {
+	$ResourcesToPatch = Find-ResourcesToPatch (Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Sims3Path $Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation)
+
 	Write-PackageWithPatchedResources `
-		-UnpatchedResources (Find-ResourcesToPatch (Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Sims3Path $Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation)) `
+		-UnpatchedResources $ResourcesToPatch `
+		-UnpatchedResourcesByPackage (Group-ResourcesToPatchByPackage $ResourcesToPatch) `
 		-State $State `
 		-FilePath $FilePath `
 		-OutputUnpackedAssemblyDirectoryPath $OutputUnpackedAssemblyDirectoryPath `
@@ -4078,6 +4098,21 @@ if ($FindingSims3Paths)
 }
 
 
+$ModsPath = Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Mods
+$OverridesPath = Join-Path $ModsPath Overrides
+$ResourceCFGPath = Join-Path $ModsPath Resource.cfg
+$TinyUIFixModFolderPath = Join-Path $ModsPath ([TinyUIFixPSForTS3]::ModsFolderName)
+
+
+if (-not $SkipGenerationOfPackage)
+{
+	$OldGeneratedPackageFilePath = Join-Path $OverridesPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
+	<# Version 1.0.3-and-older of this mod stored the package in the Overrides folder, so we delete it
+	   to prevent new installations from conflicting with old installations. #>
+	Remove-Item -LiteralPath $OldGeneratedPackageFilePath -Force -ErrorAction Ignore
+}
+
+
 if ($ResolvingResourcePriorities)
 {
 	$ResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation
@@ -4230,20 +4265,82 @@ if ($SkipGenerationOfPackage)
 }
 
 
-$OverridesPath = Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Mods/Overrides
-
-if ($Null -eq $ResolvedResourcesPriorities.ModsDirectory)
+$PrependToFile = `
 {
-	Write-Warning "Your installation of The Sims 3 does not seem to have been set-up for installing packages.$([Environment]::NewLine)Please refer to this article: https://modthesims.info/wiki.php?title=Game_Help%3AInstalling_Sims_3_Package_Files%2FSetup_and_Files" -WarningAction Continue
+	Param ($FilePath, $Text)
 
-	New-Item -ItemType Directory -Force -Path $OverridesPath -ErrorAction Stop > $Null
+	$UTF8 = [Text.UTF8Encoding]::new($False, $False)
+
+	try
+	{
+		$ExistingData = [IO.File]::ReadAllBytes($FilePath)
+	}
+	catch [IO.FileNotFoundException]
+	{
+		$ExistingData = [Byte[]] @()
+	}
+
+	$ConcatenatedData = $UTF8.GetBytes($Text) + $ExistingData
+	[IO.File]::WriteAllBytes($FilePath, $ConcatenatedData)
 }
 
-$GeneratedPackageFilePath = Join-Path $OverridesPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
 
+if (-not (Test-Path -LiteralPath $ResourceCFGPath))
+{
+	New-Item -ItemType Directory -Force -Path $ModsPath -ErrorAction Stop > $Null
+
+	[TinyUIFixPSForTS3]::WriteLineQuickly("A Resource.cfg file for mods could not be found, so one is being created one at: `"$ResourceCFGPath`".")
+
+	$SeedResourceCFG = "Priority 10000$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
+	& $PrependToFile $ResourceCFGPath "$SeedResourceCFG$([Environment]::NewLine)"
+}
+else
+{
+	$ResourceCFGLines = [String[]] (Get-Content -LiteralPath $ResourceCFGPath -ErrorAction Stop)
+	$PackedFileDirectives = [TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG($ResourceCFGLines)
+	$GreatestPriority = 0
+	$HaveTinyUIFixDirective = $False
+
+	foreach ($PackedFileDirective in $PackedFileDirectives)
+	{
+		if ($PackedFileDirective.Item2 -gt $GreatestPriority)
+		{
+			$GreatestPriority = $PackedFileDirective.Item2
+		}
+
+		if (-not $HaveTinyUIFixDirective -and $PackedFileDirective.Item1 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
+		{
+			$HaveTinyUIFixDirective = $True
+		}
+	}
+
+	if (-not $HaveTinyUIFixDirective)
+	{
+		[TinyUIFixPSForTS3]::WriteLineQuickly("`"$ResourceCFGPath`" does not have a PackedFileDirective for the Tiny UI Fix's generated package, so a PackedFileDirective for it is being added to the file.")
+
+		$Adjustment = [Int32]::MaxValue - $GreatestPriority
+		if ($Adjustment -gt 100) {$Adjustment = 100}
+		$NewPriority = $GreatestPriority + $Adjustment
+
+		$SeedResourceCFG = "Priority $NewPriority$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
+		& $PrependToFile $ResourceCFGPath "$SeedResourceCFG$([Environment]::NewLine)$([Environment]::NewLine)"
+	}
+}
+
+if (-not (Test-Path -LiteralPath $TinyUIFixModFolderPath))
+{
+	New-Item -ItemType Directory -Force -Path $TinyUIFixModFolderPath -ErrorAction Stop > $Null
+}
+
+$GeneratedPackageFilePath = Join-Path $TinyUIFixModFolderPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
+
+
+$ResourcesToPatch = Find-ResourcesToPatch $ResolvedResourcesPriorities
+$ResourcesToPatchByPackage = Group-ResourcesToPatchByPackage $ResourcesToPatch
 
 Write-PackageWithPatchedResources `
-	-UnpatchedResources (Find-ResourcesToPatch $ResolvedResourcesPriorities) `
+	-UnpatchedResources $ResourcesToPatch `
+	-UnpatchedResourcesByPackage $ResourcesToPatchByPackage `
 	-State $PatchingState `
 	-FilePath $GeneratedPackageFilePath `
 	-OutputUnpackedAssemblyDirectoryPath $OutputUnpackedAssemblyDirectoryPath `
@@ -4251,6 +4348,69 @@ Write-PackageWithPatchedResources `
 
 
 $UltimateResult.GeneratedPackage = Get-Item -LiteralPath $GeneratedPackageFilePath -ErrorAction Continue
+
+if ($Null -ne $UltimateResult.GeneratedPackage)
+{
+	if (-not $NonInteractive -or $ChangeResourceCFGToLoadTinyUIFixLast)
+	{
+		$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation -IncludeTinyUIFixPackage
+		$PrioritiesInReverse = $FinalResolvedResourcesPriorities.PrioritisedFiles.Keys | Sort-Object -Descending
+		$TinyUIFixPackagePath = $UltimateResult.GeneratedPackage.FullName
+		$PriorityToBeat = $Null
+		$ScaledPackagesThatAreOverwritingTinyUIFix = [Collections.Generic.List[String]]::new(0)
+
+		:ForEachPriority foreach ($Priority in $PrioritiesInReverse)
+		{
+			$Files = $FinalResolvedResourcesPriorities.PrioritisedFiles[$Priority]
+
+			for ($Index = $Files.Count; ($Index--) -gt 0;)
+			{
+				$File = $Files[$Index].FullName
+
+				if ($File -eq $TinyUIFixPackagePath)
+				{
+					break ForEachPriority
+				}
+
+				if ($ResourcesToPatchByPackage.ContainsKey($File))
+				{
+					$ScaledPackagesThatAreOverwritingTinyUIFix.Add($File)
+
+					if ($Null -eq $PriorityToBeat)
+					{
+						$PriorityToBeat = $Priority
+					}
+				}
+			}
+		}
+
+		if ($ScaledPackagesThatAreOverwritingTinyUIFix.Count -gt 0)
+		{
+			[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
+			Write-Warning "There are packages that were scaled by the Tiny UI Fix that will be loaded after the Tiny UI Fix, which will cause the scaling to not take effect.$([Environment]::NewLine)Those packages are: $(($ScaledPackagesThatAreOverwritingTinyUIFix | % {'"{0}"' -f $_}) -join '; ')." -WarningAction Continue
+
+			$PriorityToBeat = [TinyUIFixPSForTS3]::UnpackPriority($PriorityToBeat).Item1
+
+			if ($PriorityToBeat -eq [Int32]::MaxValue)
+			{
+				Write-Warning "This script would offer to adjust the Resource.cfg file for you, but a priority cannot be greater than $([Int32]::MaxValue)." -WarningAction Continue
+			}
+			elseif (
+				$(
+					$Adjustment = [Int32]::MaxValue - $PriorityToBeat
+					if ($Adjustment -gt 100) {$Adjustment = 100}
+
+					$ResourceCFGAddition = "Priority $($PriorityToBeat + $Adjustment)$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
+
+					$NonInteractive -or (Read-YesOrNo "$([Environment]::NewLine)Would you like to adjust the `"$ResourceCFGPath`" file to load $([TinyUIFixPSForTS3]::GeneratedPackageName) after the scaled packages?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of Resource.cfg:$([Environment]::NewLine)$ResourceCFGAddition")
+				)
+			)
+			{
+				& $PrependToFile $ResourceCFGPath "$ResourceCFGAddition$([Environment]::NewLine)$([Environment]::NewLine)"
+			}
+		}
+	}
+}
 
 
 [TinyUIFixPSForTS3]::WriteLineQuickly("$([Environment]::NewLine)A UI-scaled package file was generated, and saved to `"$GeneratedPackageFilePath`".$([Environment]::NewLine)$([Environment]::NewLine)Have fun! :)")
