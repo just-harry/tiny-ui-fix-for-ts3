@@ -2568,7 +2568,7 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 									$InstanceFieldTree = Find-InstanceFieldsForGroupedFieldPaths $Method.DeclaringType.Resolve() (Group-FieldsByPath $Patch[1].InstanceFields)
 								}
 
-								$Scaling = $InstanceFieldTree[$LoadedField]
+								$Scaling = $InstanceFieldTree.Children[$LoadedField.FullName]
 							}
 
 
