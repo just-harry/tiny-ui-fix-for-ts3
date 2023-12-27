@@ -35,9 +35,13 @@ $ScriptRoot = $PSScriptRoot
 
 $Arguments = @{AssemblyPaths = $AssemblyPaths; Configuration = $Configuration}
 
+if (-not $SkipBuildOfCoreBridge)
+{
+	& (Join-Path $ScriptRoot Build-TinyUIFixForTS3CoreBridge.ps1) @Arguments
+}
+
 ForEach-InParallel $(
 	if (-not $SkipBuildOfPatcher) {,@('Build-Cecil.ps1', 'Build-TinyUIFixForTS3Patcher.ps1')}
-	if (-not $SkipBuildOfCoreBridge) {,@('Build-TinyUIFixForTS3CoreBridge.ps1')}
 	if (-not $SkipBuildOfPatch) {,@('Build-TinyUIFixForTS3Patch.ps1')}
 ) `
 {
