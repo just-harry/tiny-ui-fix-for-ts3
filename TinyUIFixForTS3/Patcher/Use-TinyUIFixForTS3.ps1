@@ -145,15 +145,6 @@ function Get-ExpectedSims3Paths
 }
 
 
-if ($Null -eq $DBPFManipulationLibraryPath)
-{
-	if ($Null -eq $Script:ExpectedSims3Paths)
-	{
-		$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
-	}
-}
-
-
 function Test-RequiredDBPFManipulationTypesAreLoaded
 {
 	     $Null -ne ([Management.Automation.PSTypeName] 's3pi.Interfaces.TGIBlock').Type `
@@ -292,6 +283,7 @@ class TinyUIFixForTS3Logger
 
 class TinyUIFixPSForTS3
 {
+	static [Version] $Version = [Version]::new(1, 0, 4)
 	static [String] $GeneratedPackageName = 'tiny-ui-fix.package'
 	static [Int32] $MaximumPatchsetConfigurationFileDepth = 90
 
@@ -722,6 +714,30 @@ class TinyUIFixPSForTS3
 		{
 			[Console]::WriteLine($Text)
 		}
+	}
+}
+
+
+if ($Script:MyInvocation.InvocationName -cne '.' -and $Script:MyInvocation.Line -cne '')
+{
+	$VersionString = "Version $([TinyUIFixPSForTS3]::Version)"
+
+	$TL = [String] [Char] 9484
+	$TR = [String] [Char] 9488
+	$BL = [String] [Char] 9492
+	$BR = [String] [Char] 9496
+	$H = [String] [Char] 9472
+	$V = [String] [Char] 9474
+
+	[TinyUIFixPSForTS3]::WriteLineQuickly("$TL$($H * 28)$TR$([Environment]::NewLine)$V Tiny UI Fix for The Sims 3 $V$([Environment]::NewLine)$V $($VersionString.PadRight(26)) $V$([Environment]::NewLine)$BL$($H * 28)$BR")
+}
+
+
+if ($Null -eq $DBPFManipulationLibraryPath)
+{
+	if ($Null -eq $Script:ExpectedSims3Paths)
+	{
+		$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
 	}
 }
 
