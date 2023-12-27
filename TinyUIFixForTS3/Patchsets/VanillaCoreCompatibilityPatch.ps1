@@ -195,7 +195,7 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 
 						('Sims3.SimIFace.Rect Sims3.UI.CAS.CASFamilyScreen::ConnectBounds(Sims3.SimIFace.Rect,Sims3.SimIFace.Rect,System.Boolean,Sims3.SimIFace.Color)', @{Floats = 1, 4, 5, 6; StaticFields = 'HORIZONTAL_BAR_INC'}),
 						('Sims3.SimIFace.Rect Sims3.UI.CAS.CASFamilyScreen::ConnectBoundsH(Sims3.SimIFace.Rect,Sims3.SimIFace.Rect,System.Boolean,System.Boolean,Sims3.SimIFace.Color)', @{Floats = 1, 2}),
-						('Sims3.SimIFace.Rect Sims3.UI.FamilyTreeDialog::ConnectBoundsH(Sims3.SimIFace.Rect,Sims3.SimIFace.Rect,System.Boolean,Sims3.SimIFace.Color)', @{Floats = 1, 2}),
+						('Sims3.SimIFace.Rect Sims3.UI.FamilyTreeDialog::ConnectBoundsH(Sims3.SimIFace.Rect,Sims3.SimIFace.Rect,System.Boolean,Sims3.SimIFace.Color)', @{Floats = 1}),
 						('Sims3.SimIFace.Rect Sims3.UI.FamilyTreeDialog::ConnectBoundsV(Sims3.SimIFace.Rect,Sims3.SimIFace.Rect,System.Boolean,Sims3.SimIFace.Color)', @{Floats = 1}),
 						('Sims3.SimIFace.Rect Sims3.UI.FamilyTreeDialog::ConnectSims(Sims3.UI.SimTreeInfo,Sims3.UI.SimTreeInfo,System.Boolean,System.Boolean,System.Boolean,Sims3.SimIFace.Color)', @{Floats = 1, 4, 5}),
 						('Sims3.SimIFace.Rect Sims3.UI.CAS.CASFamilyScreen::RecurseLayoutDescendants(Sims3.UI.CAS.CASFamilyScreen/SimTreeInfo,System.Single,System.Single)', @{StaticFields = 'Y_DIST_BETWEEN_THUMBS'}),
