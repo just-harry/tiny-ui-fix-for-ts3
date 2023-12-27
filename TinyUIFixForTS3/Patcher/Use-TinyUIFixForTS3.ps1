@@ -2185,7 +2185,7 @@ function Group-FieldsByPath ([String[]] $Paths)
 
 function Find-InstanceFieldsForGroupedFieldPaths ([Mono.Cecil.TypeDefinition] $InType, $GroupedPaths)
 {
-	$Tree = [Ordered] @{}
+	$Tree = @{Children = [Ordered] @{}}
 	$Type = $InType
 
 	$Find = `
@@ -2202,7 +2202,7 @@ function Find-InstanceFieldsForGroupedFieldPaths ([Mono.Cecil.TypeDefinition] $I
 				{
 					$ResolvedField = $Field.Resolve()
 
-					$Fields[$ResolvedField] = ($Node = [Ordered] @{})
+					$Fields.Children[$Field.FullName] = ($Node = @{ResolvedField = $ResolvedField; Children = [Ordered] @{}})
 
 					foreach ($Path in $Paths)
 					{
@@ -2315,7 +2315,7 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 					{
 						if ($ArraysBeingScaled.Count -gt 0)
 						{
-							Write-Warning "Conditional control-flow was encountered while patching ""$Method"", and thus the following fields could not be scaled: $(($ArraysBeingScaled.Item1.FullName | Select-Object -Unique | % {"$('"')$_$('"')"}) -join '; ')."
+							Write-Warning "Conditional control-flow was encountered while patching ""$Method"", and thus the following arrays could not be scaled: $(($ArraysBeingScaled.Item1.FullName | Select-Object -Unique | % {"$('"')$_$('"')"}) -join '; ')."
 
 							$ArraysBeingScaled.Clear()
 						}
@@ -2324,11 +2324,14 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 					{
 						$StackDepthDelta = 0
 
-						if (-not [TinyUIFixForTS3Patcher.AssemblyScaling+OpCodeInspection]::StaticallyKnownStackDepthChangeEffectedBy($Instruction, [Ref] $StackDepthDelta) -and $ArraysBeingScaled.Count -gt 0)
+						if (-not [TinyUIFixForTS3Patcher.AssemblyScaling+OpCodeInspection]::StaticallyKnownStackDepthChangeEffectedBy($Instruction, [Ref] $StackDepthDelta))
 						{
-							Write-Warning "A non-statically known stack depth change was encountered while patching ""$Method"", and thus the following fields could not be scaled: $(($ArraysBeingScaled.Item1.FullName | Select-Object -Unique | % {"$('"')$_$('"')"}) -join '; ')."
+							if ($ArraysBeingScaled.Count -gt 0)
+							{
+								Write-Warning "A non-statically known stack depth change was encountered while patching ""$Method"", and thus the following arrays could not be scaled: $(($ArraysBeingScaled.Item1.FullName | Select-Object -Unique | % {"$('"')$_$('"')"}) -join '; ')."
 
-							$ArraysBeingScaled.Clear()
+								$ArraysBeingScaled.Clear()
+							}
 						}
 
 						for ($Index = 0; $Index -lt $ArraysBeingScaled.Count; ++$Index)
@@ -2422,21 +2425,23 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 						}
 						elseif (
 							$(
-								if ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldsfld)
+								if ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldsfld -or $Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldsflda)
 								{
 									if ($Patch[1].StaticFields)
 									{
 										$LoadedField = $Instruction.Operand.Resolve()
 										$IsStatic = $True
+										$IsReference = $Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldsflda
 										$True
 									}
 								}
-								elseif ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldfld)
+								elseif ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldfld -or $Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldflda)
 								{
 									if ($Patch[1].InstanceFields)
 									{
 										$LoadedField = $Instruction.Operand.Resolve()
 										$IsStatic = $False
+										$IsReference = $Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldflda
 										$True
 									}
 								}
@@ -2453,6 +2458,7 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 									$ArraysBeingScaled.RemoveAt($ArraysBeingScaled.Count - 1)
 									$LoadedField = $LastArray.Item1
 									$IsStatic = $LastArray.Item3
+									$IsReference = $False
 									$True
 								}
 							)
@@ -2572,121 +2578,136 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 							{
 								if ($LoadedFieldType.IsArray)
 								{
-									$ArraysBeingScaled.Add([ValueTuple[Mono.Cecil.FieldDefinition, Int32, Bool]]::new($LoadedField, 0, $IsStatic))
+									if (-not $IsReference)
+									{
+										$ArraysBeingScaled.Add([ValueTuple[Mono.Cecil.FieldDefinition, Int32, Bool]]::new($LoadedField, 0, $IsStatic))
+									}
 								}
 								else
 								{
-									if ($Scaling.Count -eq 0)
+									$ScaleByValueField = `
 									{
-										if ($LoadedFieldType.Namespace -ceq 'System')
+										Param ([Mono.Cecil.TypeReference] $TypeOfValue, $FieldTreeToScale, [Mono.Cecil.Cil.Instruction] $AfterLoadOfValue)
+
+										if ($FieldTreeToScale.Children.Count -eq 0)
 										{
-											if ($LoadedFieldType.Name -ceq 'Single')
-										 	{
-												(& $ScaleFloatOnStack).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-											}
-											elseif ($LoadedFieldType.Name -ceq 'Int32')
+											if ($TypeOfValue.Namespace -ceq 'System')
 											{
-												(& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I4)).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-											}
-											elseif ($LoadedFieldType.Name -ceq 'UInt32')
-											{
-												(& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U4)).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-											}
-											elseif ($LoadedFieldType.Name -ceq 'Int16')
-											{
-												(& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I2)).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-											}
-											elseif ($LoadedFieldType.Name -ceq 'UInt16')
-											{
-												(& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U2)).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-											}
-											elseif ($LoadedFieldType.Name -ceq 'SByte')
-											{
-												(& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I1)).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-											}
-											elseif ($LoadedFieldType.Name -ceq 'Byte')
-											{
-												(& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U1)).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-											}
-										}
-									}
-									else
-									{
-										$Local = $Null
-										if (-not $LocalOfTypeCache.TryGetValue($LoadedFieldType, [Ref] $Local))
-										{
-											$Local = Add-VariableToMethod $Method $(if ($LoadedFieldType.Module -eq $Module) {$LoadedFieldType} else {$Module.Import($LoadedFieldType)})
-											$LocalOfTypeCache[$LoadedFieldType] = $Local
-										}
-
-										$IL.InsertBefore($AfterLoad, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stloc, $Local))
-										$IL.InsertBefore($AfterLoad, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldloca, $Local))
-
-										for ($Index = 1; $Index -lt $Scaling.Count; ++$Index)
-										{
-											$IL.InsertBefore($AfterLoad, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup))
-										}
-
-										$Scale = `
-										{
-											Param ($FieldNode)
-
-											foreach ($Field in $FieldNode.GetEnumerator())
-											{
-												[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldflda, $(if ($Field.Key.Module -eq $Module) {$Field.Key} else {$Module.Import($Field.Key)}))
-
-												if ($Field.Value.Count -eq 0)
+												if ($TypeOfValue.Name -ceq 'Single')
 												{
-													if ($Field.Key.FieldType.Namespace -ceq 'System')
+													(& $ScaleFloatOnStack).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
+												elseif ($TypeOfValue.Name -ceq 'Int32')
+												{
+													(& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I4)).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
+												elseif ($TypeOfValue.Name -ceq 'UInt32')
+												{
+													(& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U4)).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
+												elseif ($TypeOfValue.Name -ceq 'Int16')
+												{
+													(& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I2)).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
+												elseif ($TypeOfValue.Name -ceq 'UInt16')
+												{
+													(& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U2)).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
+												elseif ($TypeOfValue.Name -ceq 'SByte')
+												{
+													(& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I1)).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
+												elseif ($TypeOfValue.Name -ceq 'Byte')
+												{
+													(& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U1)).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
+											}
+										}
+										else
+										{
+											$Local = $Null
+											if (-not $LocalOfTypeCache.TryGetValue($TypeOfValue, [Ref] $Local))
+											{
+												$Local = Add-VariableToMethod $Method $(if ($TypeOfValue.Module -eq $Module) {$TypeOfValue} else {$Module.Import($TypeOfValue)})
+												$LocalOfTypeCache[$TypeOfValue] = $Local
+											}
+
+											$IL.InsertBefore($AfterLoadOfValue, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stloc, $Local))
+											$IL.InsertBefore($AfterLoadOfValue, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldloca, $Local))
+
+											for ($Index = 1; $Index -lt $FieldTreeToScale.Children.Count; ++$Index)
+											{
+												$IL.InsertBefore($AfterLoadOfValue, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup))
+											}
+
+											$NestedScale = `
+											{
+												Param ($FieldNode)
+
+												foreach ($Field in $FieldNode.Children.Values)
+												{
+													$ResolvedField = $Field.ResolvedField
+													$Children = $Field.Children
+
+													[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldflda, $(if ($ResolvedField.Module -eq $Module) {$ResolvedField} else {$Module.Import($ResolvedField)}))
+
+													if ($Children.Count -eq 0)
 													{
-														if ($Field.Key.FieldType.Name -ceq 'Single')
+														if ($ResolvedField.FieldType.Namespace -ceq 'System')
 														{
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_R4)
-															& $ScaleFloatOnStack
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_R4)
-														}
-														elseif ($Field.Key.FieldType.Name -ceq 'Int32')
-														{
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_I4)
-															& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I4)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_I4)
-														}
-														elseif ($Field.Key.FieldType.Name -ceq 'UInt32')
-														{
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_U4)
-															& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U4)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_U4)
-														}
-														elseif ($Field.Key.FieldType.Name -ceq 'Int16')
-														{
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_I2)
-															& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I2)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_I2)
-														}
-														elseif ($Field.Key.FieldType.Name -ceq 'UInt16')
-														{
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_U2)
-															& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U2)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_U2)
-														}
-														elseif ($Field.Key.FieldType.Name -ceq 'SByte')
-														{
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_I1)
-															& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I1)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_I1)
-														}
-														elseif ($Field.Key.FieldType.Name -ceq 'Byte')
-														{
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_U1)
-															& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U1)
-															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_U1)
+															if ($ResolvedField.FieldType.Name -ceq 'Single')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_R4)
+																& $ScaleFloatOnStack
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_R4)
+															}
+															elseif ($ResolvedField.FieldType.Name -ceq 'Int32')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_I4)
+																& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I4)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_I4)
+															}
+															elseif ($ResolvedField.FieldType.Name -ceq 'UInt32')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_U4)
+																& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U4)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_U4)
+															}
+															elseif ($ResolvedField.FieldType.Name -ceq 'Int16')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_I2)
+																& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I2)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_I2)
+															}
+															elseif ($ResolvedField.FieldType.Name -ceq 'UInt16')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_U2)
+																& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U2)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_U2)
+															}
+															elseif ($ResolvedField.FieldType.Name -ceq 'SByte')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_I1)
+																& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I1)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_I1)
+															}
+															elseif ($ResolvedField.FieldType.Name -ceq 'Byte')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_U1)
+																& $ScaleIntOnStack -Unsigned ([Mono.Cecil.Cil.OpCodes]::Conv_U1)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_U1)
+															}
+															else
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Pop)
+															}
 														}
 														else
 														{
@@ -2695,24 +2716,91 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 													}
 													else
 													{
-														[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Pop)
+														for ($Index = 1; $Index -lt $Children.Count; ++$Index)
+														{
+															[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+														}
+
+														& $NestedScale $Field
 													}
 												}
-												else
-												{
-													for ($Index = 1; $Index -lt $Field.Value.Count; ++$Index)
-													{
-														[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
-													}
+											}
 
-													& $Scale $Field.Value
+											(& $NestedScale $FieldTreeToScale).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+
+											$IL.InsertBefore($AfterLoadOfValue, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldloc, $Local))
+										}
+									}
+
+									if ($IsReference)
+									{
+										$ScaleFromReferenceToField = `
+										{
+											Param ([Mono.Cecil.TypeReference] $TypeOfReference, $FieldTreeToScale, [Mono.Cecil.Cil.Instruction] $FromInstruction)
+
+											$StackDepth = 0
+											$NextInstruction = $FromInstruction
+
+											while ($NextInstruction = $NextInstruction.Next)
+											{
+												$StackDepthDelta = 0
+
+												if (-not [TinyUIFixForTS3Patcher.AssemblyScaling+OpCodeInspection]::StaticallyKnownStackDepthChangeEffectedBy($NextInstruction, [Ref] $StackDepthDelta))
+												{
+													Write-Warning "A non-statically known stack depth change was encountered while patching ""$Method"", and thus some fields won't be scaled."
+
+													return
+												}
+
+												$StackDepth += $StackDepthDelta
+
+												if ($StackDepth -eq 1)
+												{
+													if ($NextInstruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Dup)
+													{
+														$NextInstruction = & $ScaleFromReferenceToField $TypeOfReference $FieldTreeToScale $FromInstruction
+													}
+												}
+												elseif ($StackDepth -eq 0)
+												{
+													if ($NextInstruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldflda)
+													{
+														$FieldNode = $FieldTreeToScale.Children[$NextInstruction.Operand.FullName]
+
+														if ($Null -ne $FieldNode)
+														{
+															& $ScaleFromReferenceToField $NextInstruction.Operand.FieldType $FieldNode $NextInstruction > $Null
+														}
+
+														return $NextInstruction
+													}
+													elseif ($NextInstruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldfld)
+													{
+														$FieldNode = $FieldTreeToScale.Children[$NextInstruction.Operand.FullName]
+
+														if ($Null -ne $FieldNode)
+														{
+															& $ScaleByValueField $NextInstruction.Operand.FieldType $FieldNode $NextInstruction.Next
+														}
+
+														return $NextInstruction
+													}
+												}
+												elseif ($StackDepth -lt 0)
+												{
+													return
 												}
 											}
 										}
 
-										(& $Scale $Scaling).ForEach{$IL.InsertBefore($AfterLoad, $_)}
-
-										$IL.InsertBefore($AfterLoad, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldloc, $Local))
+										if ($Scaling.Children.Count -gt 0)
+										{
+											& $ScaleFromReferenceToField $LoadedFieldType $Scaling $Instruction > $Null
+										}
+									}
+									else
+									{
+										& $ScaleByValueField $LoadedFieldType $Scaling $AfterLoad
 									}
 								}
 							}
