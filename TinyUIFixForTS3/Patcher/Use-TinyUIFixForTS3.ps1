@@ -807,17 +807,17 @@ class TinyUIFixForTS3PatchsetLogger : TinyUIFixForTS3Logger
 
 	[Void] WriteWarning ([String] $Text)
 	{
-		([TinyUIFixForTS3Logger] $This).WriteWarning("Patchset/$($This.CurrentPatchset.Definition.ID): $Text")
+		([TinyUIFixForTS3Logger] $This).WriteWarning("Patchset/$($This.CurrentPatchset.Definition.ID)|v$($This.CurrentPatchset.Definition.Version): $Text")
 	}
 
 	[Void] WriteError ([String] $Text)
 	{
-		([TinyUIFixForTS3Logger] $This).WriteError("Patchset/$($This.CurrentPatchset.Definition.ID): $Text")
+		([TinyUIFixForTS3Logger] $This).WriteError("Patchset/$($This.CurrentPatchset.Definition.ID)|v$($This.CurrentPatchset.Definition.Version): $Text")
 	}
 
 	[Void] WriteInfo ([String] $Text)
 	{
-		([TinyUIFixForTS3Logger] $This).WriteInfo("Patchset/$($This.CurrentPatchset.Definition.ID): $Text")
+		([TinyUIFixForTS3Logger] $This).WriteInfo("Patchset/$($This.CurrentPatchset.Definition.ID)|v$($This.CurrentPatchset.Definition.Version): $Text")
 	}
 
 	TinyUIFixForTS3PatchsetLogger () : base()
