@@ -16,6 +16,7 @@ $TinyUIFixPath = Join-Path $PSScriptRoot TinyUIFixForTS3
 $ToolsPath = Join-Path $PSScriptRoot Tools
 
 [PSCustomObject] @{
+	Root = $PSScriptRoot
 	LicencesPath = Join-Path $PSScriptRoot Licences
 	BuildRoot = $BuildRoot
 	BuildBinPath = Join-Path $BuildRoot Bin
