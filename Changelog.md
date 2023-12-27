@@ -4,4 +4,4 @@
 
 ### Version 1.0.1
 
-* A glitch that caused opening a family-tree dialog to freeze the game was fixed.
+* A failed attempt to fix a glitch that caused the game to freeze when an NRaas Master Controller enhanced family-tree dialog was opened, even when the `CompatibilityPatchesForNRaasMods` patchset was active, was attempted.
