@@ -20,7 +20,7 @@ Otherwise, on previous versions of Windows: [at-least version 4.7.1 of the .NET 
 
 #### Step-by-step
 
-1. Download the patch's Batch file, `tiny-ui-fix-for-ts3.bat`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.2/tiny-ui-fix-for-ts3.bat](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.2/tiny-ui-fix-for-ts3.bat).
+1. Download the patch's Batch file, `tiny-ui-fix-for-ts3.bat`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.3/tiny-ui-fix-for-ts3.bat](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.3/tiny-ui-fix-for-ts3.bat).
 2. Run the downloaded Batch file by double-clicking it.
 3. Follow the instructions provided by the script.
 </details>
@@ -37,7 +37,7 @@ At-least version 10.13 of macOS (version 10.13 is High Sierra).
 
 #### Step-by-step
 
-1. Download the zip containing the patch's Shell script, `tiny-ui-fix-for-ts3.command.zip`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.2/tiny-ui-fix-for-ts3.command.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.2/tiny-ui-fix-for-ts3.command.zip).
+1. Download the zip containing the patch's Shell script, `tiny-ui-fix-for-ts3.command.zip`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.3/tiny-ui-fix-for-ts3.command.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.3/tiny-ui-fix-for-ts3.command.zip).
 2. Open the downloaded zip file by double-clicking it. (The Safari browser may automatically take the script out of the zip file).
 3. Right-click the `tiny-ui-fix-for-ts3.command` file and select "Open".
 4. Select "Open" in the dialog that pops up.
@@ -54,7 +54,7 @@ At-least version 10.13 of macOS (version 10.13 is High Sierra).
 
 Version 5.1 of PowerShell, or version 7.0-or-later of PowerShell.
 
-The PowerShell script and its accompanying files can be downloaded as a zip-archive from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.2/tiny-ui-fix-for-ts3.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.2/tiny-ui-fix-for-ts3.zip). \
+The PowerShell script and its accompanying files can be downloaded as a zip-archive from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.3/tiny-ui-fix-for-ts3.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.0.3/tiny-ui-fix-for-ts3.zip). \
 Extract that zip-archive to a directory, and then run the script in PowerShell via the `Use-TinyUIFixForTS3.ps1` file at the root of the directory.
 </details>
 
