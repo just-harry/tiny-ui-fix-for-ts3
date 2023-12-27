@@ -74,15 +74,17 @@ $Files = @(
 	@{File = & $Get Data/TinyUIFixForTS3CoreBridge.pdb; Destination = 'Data/TinyUIFixForTS3CoreBridge.pdb'}
 )
 
-$Scripts =  New-SEEPSSEFEU `
+$Scripts = New-SEEPSSEFEU `
 	-Files $Files `
 	-DestinationBase tiny-ui-fix-for-ts3 `
 	-ScriptToRun Use-TinyUIFixForTS3.ps1 `
 	-TerminalWindowTitle 'Tiny UI Fix for The Sims 3' `
+	-MakeZipInWindowsExplorerFriendlyVersion `
 	-PowerShellTarballSourceForX86 $MacOSX86PowerShellSource `
 	-PowerShellTarballSourceForARM $MacOSARMPowerShellSource
 
 $WindowsPath = Join-Path $PackagePath tiny-ui-fix-for-ts3.bat
+$WindowsZipPath = "$WindowsPath.zip"
 $MacOSPath = Join-Path $PackagePath tiny-ui-fix-for-ts3.command
 $MacOSZipPath = "$MacOSPath.zip"
 
@@ -98,6 +100,12 @@ $ZipArchivePath = Join-Path $PackagePath tiny-ui-fix-for-ts3.zip
 Remove-Item -Recurse -Force -LiteralPath $ZipScratchPath -ErrorAction Ignore
 New-Item -ItemType Directory -Force -Path $ZipScratchPath > $Null
 
+$WindowsZipBatPath = Join-Path $ZipScratchPath tiny-ui-fix-for-ts3.bat
+
+[IO.File]::WriteAllText($WindowsZipBatPath, $Scripts.WindowsZipInWindowsExplorerFriendly.ToString(), $UTF8)
+Compress-Archive -Force -CompressionLevel Optimal -LiteralPath $WindowsZipBatPath -DestinationPath $WindowsZipPath
+Remove-Item -Force -LiteralPath $WindowsZipBatPath -ErrorAction Ignore
+
 foreach ($File in $Files)
 {
 	$DestinationPath = Join-Path $ZipScratchPath $File.Destination
@@ -112,6 +120,7 @@ Remove-Item -Recurse -Force -LiteralPath $ZipScratchPath -ErrorAction Ignore
 
 [PSCustomObject] @{
 	Windows = Get-Item -LiteralPath $WindowsPath
+	WindowsZip = Get-Item -LiteralPath $WindowsZipPath
 	MacOS = Get-Item -LiteralPath $MacOSPath
 	MacOSZip = Get-Item -LiteralPath $MacOSZipPath
 	ZipArchive = Get-Item -LiteralPath $ZipArchivePath
