@@ -1973,6 +1973,7 @@ function Apply-PatchesToResources (
 		$ResourceKeysByAssembly[$Assembly] = $AssemblyStream.Key
 	}
 
+	[TinyUIFixPSForTS3]::WriteLineQuickly("$(if ($AssemblyResolver.assemblies.Count -ne 1) {"These $($AssemblyResolver.assemblies.Count) assemblies were"} else {'This assembly was'}) resolved: $(($AssemblyResolver.assemblies.Values.ForEach{$_.Name.Name.Replace('\', '\\').Replace(';', '\;')} | Sort-Object) -join '; ').")
 
 	$State.Assemblies = [PSCustomObject] @{Resolver = $AssemblyResolver; AssemblyKeysByResourceKey = $AssemblyKeysByResourceKey; ResourceKeysByAssemblyKey = $ResourceKeysByAssemblyKey; ResourceKeysByAssembly = $ResourceKeysByAssembly}
 	$State.PatchedAssemblyResourceKeys = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new(8)
