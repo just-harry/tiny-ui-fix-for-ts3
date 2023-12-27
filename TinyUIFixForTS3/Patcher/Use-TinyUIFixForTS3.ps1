@@ -935,11 +935,13 @@ function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [S
 
 	foreach ($Entry in $ModPriorities.PrioritisedFiles.GetEnumerator())
 	{
-		$PrioritisedFiles[$Entry.Key] = foreach ($File in $Entry.Value)
-		{
-			$AllActiveModPackages.Add($File)
-			[IO.FileInfo] "$ModsDirectoryPath/$File"
-		}
+		$PrioritisedFiles[$Entry.Key] = @(
+			foreach ($File in $Entry.Value)
+			{
+				$AllActiveModPackages.Add($File)
+				[IO.FileInfo] "$ModsDirectoryPath/$File"
+			}
+		)
 	}
 
 	$Result
