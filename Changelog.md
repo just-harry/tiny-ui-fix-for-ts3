@@ -2,6 +2,11 @@
 
 ## Changelog
 
+### Version 1.0.3
+
+- A regression introduced by version 1.0.2, which caused the `Apply-ConvenientPatchesToAssemblies` function to fail to scale the descendant fields of field-chains starting with an instance field was fixed.
+- As a result of the fix to `Apply-ConvenientPatchesToAssemblies`, interaction-queue items are once again scaled properly.
+
 ### Version 1.0.2
 
 - The `Apply-ConvenientPatchesToAssemblies` function is now capable of scaling the descendant fields of fields loaded by-reference (via the `ldsflda` and `ldflda` op-codes), so long as the terminal field is loaded by-value and the field loaded by-reference isn't of an array type.
