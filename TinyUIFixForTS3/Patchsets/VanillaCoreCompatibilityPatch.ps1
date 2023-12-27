@@ -226,7 +226,7 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 						('System.Void Sims3.UI.Hud.MapviewHoverButton::OnCameraAtMaxZoom(System.Boolean)', @{StaticFields = 'kOffsetFromMouseCursor'}),
 						('System.Void Sims3.UI.Hud.SimDisplay::CheckSkewerDisplacement()', @{StaticFields = 'kSkewerDisplacement', 'kSkewerPadding'}),
 						('System.Void Sims3.UI.ScreenGrabController::UpdateCameraParameters()', @{Floats = 10}),
-						('System.Void Sims3.UI.ScreenGrabController::AdjustWindowForNewRes(Sims3.UI.WindowBase,System.Single,System.Single,System.Single,System.Single)', @{Floats = 1024, 768}),
+						('System.Boolean Sims3.UI.ScreenGrabController::Init(System.UInt32,System.UInt32,System.UInt32,System.UInt32)', @{Floats = 1024, 768}),
 						('Sims3.UI.Tooltip Sims3.UI.TraitsPickerDialog::CreateTraitsTooltip(Sims3.SimIFace.Vector2,Sims3.UI.WindowBase,Sims3.SimIFace.Vector2&)', @{Floats = 10}),
 						('Sims3.UI.Tooltip Sims3.UI.TraitsPickerDialog::CreateAppliedTraitsTooltip(Sims3.SimIFace.Vector2,Sims3.UI.WindowBase,Sims3.SimIFace.Vector2&)', @{Floats = 10, 60, 120}),
 						('Sims3.UI.Tooltip Sims3.UI.WishPickerDialog::CreateWishesTooltip(Sims3.SimIFace.Vector2,Sims3.UI.WindowBase,Sims3.SimIFace.Vector2&)', @{Floats = 10, 60, 120}),
