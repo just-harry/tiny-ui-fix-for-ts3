@@ -2,6 +2,23 @@
 
 ## Changelog
 
+### Version 1.0.4
+
+#### User-facing
+
+- There is now a button, in the configurator, for checking for updates to the Tiny UI Fix.
+- The generated `tiny-ui-fix.package` is now saved to `Mods/TinyUIFix/tiny-ui-fix.package` instead of `Mods/Overrides/tiny-ui-fix.package`, to ensure that the Tiny UI Fix package is loaded after the packages that it scales. The script will automatically add an entry to the `Resource.cfg` file to set-up a priority for the package—if a `Resource.cfg` file does not exist, one will be created. Old `tiny-ui-fix.package` files in `Mods/Overrides/tiny-ui-fix.package` will be deleted automatically, so there's no need to worry about cleaning them up manually.
+- The version of the Tiny UI Fix script is now printed on start-up.
+- The version of a patchset is now logged alongside its ID.
+- The assembly names of all the assemblies that are initially resolved are now printed. Hopefully, this should help to diagnose patchsets failing to identify assemblies by name.
+- Mod folders containing exactly one package file no longer cause an `Unable to index into an object of type System.Collections.Generic.Dictionary`2[System.UInt64,System.Collections.Generic.IEnumerable`1[System.Object]]` error to occur.
+- Errors that occur when a layout is being scaled are now handled gracefully: the layout is skipped, and the resource-key and the package of the layout is logged.
+
+#### Developer-side
+
+- The `Building/Build-All.ps1` script no longer fails on the first build, as the core-bridge is now correctly built before the patch and patcher.
+- There is now a `Tools/Update-VersionNumber.ps1` script to update the version number of the Tiny UI Fix script in all the places it should be updated in.
+
 ### Version 1.0.3
 
 - A regression introduced by version 1.0.2, which caused the `Apply-ConvenientPatchesToAssemblies` function to fail to scale the descendant fields of field-chains starting with an instance field was fixed.
