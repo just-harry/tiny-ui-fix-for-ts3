@@ -13,6 +13,7 @@ using Mono.Cecil.Cil;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.IO;
 using System.Numerics;
@@ -23,6 +24,12 @@ using System.Xml;
 
 namespace TinyUIFixForTS3Patcher
 {
+	public static class Parsing
+	{
+		public static readonly NumberFormatInfo floatFormat = new NumberFormatInfo();
+		public static readonly NumberFormatInfo integerFormat = new NumberFormatInfo();
+	}
+
 	public static class LayoutScaler
 	{
 		public const string floatFormatString = "{0:F9}";
@@ -39,7 +46,12 @@ namespace TinyUIFixForTS3Patcher
 		{
 			var values = text.Split(',');
 
-			return new Vector4(float.Parse(values[0]), float.Parse(values[1]), float.Parse(values[3]), float.Parse(values[2]));
+			return new Vector4(
+				float.Parse(values[0], Parsing.floatFormat),
+				float.Parse(values[1], Parsing.floatFormat),
+				float.Parse(values[3], Parsing.floatFormat),
+				float.Parse(values[2], Parsing.floatFormat)
+			);
 		}
 
 		public static string AreaToString (Vector4 area)
@@ -61,7 +73,10 @@ namespace TinyUIFixForTS3Patcher
 		{
 			var values = text.Split(',');
 
-			return new Vector2(float.Parse(values[0]), float.Parse(values[1]));
+			return new Vector2(
+				float.Parse(values[0], Parsing.floatFormat),
+				float.Parse(values[1], Parsing.floatFormat)
+			);
 		}
 
 		public static string PointToString (Vector2 point)
@@ -77,7 +92,7 @@ namespace TinyUIFixForTS3Patcher
 
 		public static float ValueFromString (string text)
 		{
-			return float.Parse(text);
+			return float.Parse(text, Parsing.floatFormat);
 		}
 
 		public static string ValueToString (float value)
@@ -415,7 +430,7 @@ namespace TinyUIFixForTS3Patcher
 					if (layoutWinProcs != null)
 					{
 						XmlNode anchorValue = anchor.Attributes.GetNamedItem("value");
-						byte anchorValueInt = byte.Parse(anchorValue.Value);
+						byte anchorValueInt = byte.Parse(anchorValue.Value, Parsing.integerFormat);
 
 						layoutWinProcs[state.controlIDChain[state.controlIDChain.Count - 1]].Add(
 							new ValueTuple<LayoutWinProc, ControlIDChain>(
@@ -446,7 +461,7 @@ namespace TinyUIFixForTS3Patcher
 						}
 
 						XmlNode anchorValue = anchor.Attributes.GetNamedItem("value");
-						byte anchorValueInt = byte.Parse(anchorValue.Value);
+						byte anchorValueInt = byte.Parse(anchorValue.Value, Parsing.integerFormat);
 
 						layoutWinProcs[state.controlIDChain[state.controlIDChain.Count - 1]].Add(
 							new ValueTuple<LayoutWinProc, ControlIDChain>(
@@ -825,7 +840,7 @@ namespace TinyUIFixForTS3Patcher
 					XmlNode minThumbSizeValue = minThumbSize.Attributes.GetNamedItem("value");
 
 					stringBuilder.Clear();
-					stringBuilder.Append((int) Math.Floor((float) int.Parse(minThumbSizeValue.Value) * multiplier));
+					stringBuilder.Append((int) Math.Floor((float) int.Parse(minThumbSizeValue.Value, Parsing.integerFormat) * multiplier));
 
 					minThumbSizeValue.Value = stringBuilder.ToString();
 
@@ -854,7 +869,7 @@ namespace TinyUIFixForTS3Patcher
 					XmlNode rowHeightValue = rowHeight.Attributes.GetNamedItem("value");
 
 					stringBuilder.Clear();
-					stringBuilder.Append((uint) Math.Floor((float) uint.Parse(rowHeightValue.Value) * multiplier));
+					stringBuilder.Append((uint) Math.Floor((float) uint.Parse(rowHeightValue.Value, Parsing.integerFormat) * multiplier));
 
 					rowHeightValue.Value = stringBuilder.ToString();
 
@@ -1046,7 +1061,7 @@ namespace TinyUIFixForTS3Patcher
 						if (matches.Success)
 						{
 							stringBuilder.Clear();
-							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value) * multiplier);
+							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value, Parsing.floatFormat) * multiplier);
 							stringBuilder.Append(matches.Groups[2].Value);
 							stringBuilder.Append(matches.Groups[3].Value);
 							rewrittenValue = stringBuilder.ToString();
@@ -1060,7 +1075,7 @@ namespace TinyUIFixForTS3Patcher
 						if (matches.Success)
 						{
 							stringBuilder.Clear();
-							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value) * multiplier);
+							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value, Parsing.floatFormat) * multiplier);
 							stringBuilder.Append(matches.Groups[2].Value);
 							rewrittenValue = stringBuilder.ToString();
 						}
