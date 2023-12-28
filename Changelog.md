@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### Version 1.0.5
+
+#### User-facing
+
+- Layout and text-style scaling no longer fails when the system-locale does not use a dot for decimal-points.
+
 ### Version 1.0.4
 
 #### User-facing
