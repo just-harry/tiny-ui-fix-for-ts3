@@ -287,6 +287,8 @@ class TinyUIFixForTS3Logger
 class TinyUIFixPSForTS3
 {
 	static [Version] $Version = [Version]::new(1, 0, 4)
+	static [URI] $VersionCheckURL = [URI]::new('https://github.com/just-harry/tiny-ui-fix-for-ts3/raw/most-recent-version/VERSION')
+	static [URI] $HomePageURL = [URI]::new('https://github.com/just-harry/tiny-ui-fix-for-ts3')
 
 	static [String] $GeneratedPackageName = 'tiny-ui-fix.package'
 	static [String] $ModsFolderName = 'TinyUIFix'
@@ -721,6 +723,70 @@ class TinyUIFixPSForTS3
 			[Console]::WriteLine($Text)
 		}
 	}
+}
+
+
+function Get-MostRecentVersionAvailableForTinyUIFixForTS3From ([URI] $VersionCheckURL, [String] $CacheFilePath)
+{
+	$CacheContents = Get-Content -Raw -LiteralPath $CacheFilePath -ErrorAction Ignore
+	$Cache = if ($Null -ne $CacheContents) {try {ConvertFrom-Json $CacheContents} catch {$Null}} else {$Null}
+
+	$Headers = [Ordered] @{}
+
+	if ($Null -ne $Cache.ETag)
+	{
+		$Headers['If-None-Match'] = $Cache.ETag
+	}
+
+	try
+	{
+		$Response = Invoke-WebRequest -UseBasicParsing -Header $Headers -Uri $VersionCheckURL
+	}
+	catch
+	{
+		if ($Null -eq $_.Exception.Response)
+		{
+			throw
+		}
+
+		$Response = $_.Exception.Response
+	}
+
+	if ($Response.StatusCode -ne 200 -and $Response.StatusCode -ne 304)
+	{
+		[PSCustomObject] @{Unknown = $True}
+	}
+	else
+	{
+		$Version = if ($Response.StatusCode -eq 304)
+		{
+			[Version]::new($Cache.Version)
+		}
+		else
+		{
+			[Version]::new($Response.Content)
+		}
+
+		$ETagType = ([Management.Automation.PSTypeName] 'Net.Http.Headers.EntityTagHeaderValue').Type
+		$ETag = $Response.Headers.ETag[0]
+
+		if ($Null -ne $ETagType -and $ETag -is $ETagType)
+		{
+			$ETag = $ETag.ToString()
+		}
+
+		$Cache = @{Version = $Version.ToString(); ETag = $ETag}
+		$CacheContents = ConvertTo-Json $Cache
+		New-Item $CacheFilePath -Force -Value $CacheContents -ErrorAction Continue > $Null
+
+		[PSCustomObject] @{Version = $Version}
+	}
+}
+
+
+function Get-MostRecentVersionAvailableForTinyUIFixForTS3
+{
+	Get-MostRecentVersionAvailableForTinyUIFixForTS3From ([TinyUIFixPSForTS3]::VersionCheckURL) (Join-Path $PSScriptRoot LastUpdateCheck.json)
 }
 
 
