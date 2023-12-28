@@ -121,7 +121,9 @@ If you are a mod author and you would like to make your mod compatible with the 
 
 ## Known issues
 
-- Layout and text-style parsing fails when the system locale does not use a dot for decimal-points.
+If an issue is struck-out that denotes that the issue was fixed in the latest version of the patch.
+
+- ~~Layout and text-style parsing fails when the system locale does not use a dot for decimal-points.~~
 - The Tiny UI Fix script cannot handle `Resource.cfg` files that were modified by CC Magic.
 - Some icons and graphics are visually stretched in one dimension.
 - Some icons disappear when they are selected.
