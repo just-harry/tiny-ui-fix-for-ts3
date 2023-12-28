@@ -397,19 +397,12 @@ $MinimumPatchsetLoadOrderPosition = 2
 				return {array: loadOrder, set: encountered};
 			};
 
-			const sendRequest = (path, body, onResponse = response => {}) =>
+			const sendRequest = (path, args, onResponse = response => {}) =>
 			{
-				return fetch(
-					path,
-					{
-						method: 'POST',
-						headers: {'Content-Type': 'application/json'},
-						body: JSON.stringify(body)
-					}
-				).then(
+				return fetch(path, args).then(
 					response =>
 					{
-						if (response.status !== 204)
+						if (response.status !== 200 && response.status !== 204)
 						{
 							window.alert('The PowerShell script responded, but an error occurred. Please refer back to the script\'s output for more information.');
 
@@ -428,6 +421,8 @@ $MinimumPatchsetLoadOrderPosition = 2
 				const configurator = document.getElementById('configurator')
 				const configuratorHeaderStatusMessageParent = configurator.querySelector('[data-header-status-message-parent]');
 				const configuratorHeaderStatusMessage = configuratorHeaderStatusMessageParent.querySelector('[data-header-status-message]');
+				const configuratorFooterStatusMessageParent = configurator.querySelector('[data-footer-status-message-parent]');
+				const configuratorFooterStatusMessage = configuratorFooterStatusMessageParent.querySelector('[data-footer-status-message]');
 				const availablePatchsetsList = configurator.querySelector('[data-available-patchsets]');
 				const patchsetLoadOrderPanel = configurator.querySelector('[data-patchset-load-order-panel]');
 				const patchsetLoadOrderList = patchsetLoadOrderPanel.querySelector('[data-patchset-load-order]');
@@ -435,6 +430,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				const generatePackageButton = configurator.querySelector('[data-generate-package-button]');
 				const exportLoadOrderButton = configurator.querySelector('[data-export-load-order-button]');
 				const importLoadOrderButton = configurator.querySelector('[data-import-load-order-button]');
+				const checkForUpdatesButton = configurator.querySelector('[data-check-for-updates-button]');
 				const cancelConfiguratorButton = configurator.querySelector('[data-cancel-configurator-button]');
 				const importExportZone = configurator.querySelector('[data-import-export-zone]');
 				const uiScaleInput = configurator.querySelector('[data-ui-scale]');
@@ -554,13 +550,18 @@ $MinimumPatchsetLoadOrderPosition = 2
 
 				const currentLoadOrder = () => Array.prototype.map.call(patchsetLoadOrderList.children, e => e.dataset.id);
 
-				const sendRequestAndSetStatusMessage = (path, body, message) => {
+				const sendRequestAndSetHeaderStatusMessage = (path, body, message) => {
 					generatePackageButton.disabled = true;
+					checkForUpdatesButton.disabled = true;
 					cancelConfiguratorButton.disabled = true;
 
 					return sendRequest(
 						path,
-						body,
+						{
+							method: 'POST',
+							headers: {'Content-Type': 'application/json'},
+							body: JSON.stringify(body)
+						},
 						response =>
 						{
 							configuratorHeaderStatusMessage.innerText = message;
@@ -569,10 +570,25 @@ $MinimumPatchsetLoadOrderPosition = 2
 					);
 				};
 
-				generatePackageButton.addEventListener('click', event => sendRequestAndSetStatusMessage('/generate-package', {patchsetConfiguration: {Nucleus: {UIScale: uiScaleInput.value}}, patchsetLoadOrder: currentLoadOrder().join(' ')}, 'A package is now being generated. Please return to the PowerShell script.'));
+				const sendRequestAndSetFooterStatusMessage = path => {
+					return sendRequest(
+						path,
+						{},
+						response => response.json().then(
+							data =>
+							{
+								configuratorFooterStatusMessage.innerHTML = data.Message;
+								configuratorFooterStatusMessageParent.hidden = false;
+							}
+						)
+					);
+				};
+
+				generatePackageButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/generate-package', {patchsetConfiguration: {Nucleus: {UIScale: uiScaleInput.value}}, patchsetLoadOrder: currentLoadOrder().join(' ')}, 'A package is now being generated. Please return to the PowerShell script.'));
 				exportLoadOrderButton.addEventListener('click', event => importExportZone.value = currentLoadOrder().join("\r\n"));
 				importLoadOrderButton.addEventListener('click', event => importLoadOrderText(importExportZone.value));
-				cancelConfiguratorButton.addEventListener('click', event => sendRequestAndSetStatusMessage('/cancel', {}, 'No changes have been made, nor will any be made.'));
+				checkForUpdatesButton.addEventListener('click', event => sendRequestAndSetFooterStatusMessage('/check-for-updates'));
+				cancelConfiguratorButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/cancel', {}, 'No changes have been made, nor will any be made.'));
 			};
 
 			if (document.readyState === 'loading')
@@ -685,7 +701,13 @@ $MinimumPatchsetLoadOrderPosition = 2
 						<button type="button" data-generate-package-button>Generate package</button>
 						<button type="button" data-export-load-order-button>Export load-order</button>
 						<button type="button" data-import-load-order-button>Import load-order</button>
+						<button type="button" data-check-for-updates-button>Check for updates</button>
 						<button type="button" data-cancel-configurator-button>Cancel</button>
+						<div hidden class="panel scrollable" data-footer-status-message-parent>
+							<div class="textual-panel">
+								<span data-footer-status-message></span>
+							</div>
+						</div>
 						<label class="import-export-zone-panel">
 							<h3>Import/Export</h3>
 							<textarea spellcheck="false" autocapitalize="none" autocomplete="off" data-import-export-zone></textarea>

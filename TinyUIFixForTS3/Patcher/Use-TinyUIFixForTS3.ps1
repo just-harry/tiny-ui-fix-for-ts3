@@ -3794,10 +3794,10 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 				continue
 			}
 
-			function Start-HTMLResponse ([String] $HTML)
+			function Start-Response ([String] $ContentType, [String] $ResponseValue)
 			{
 				$Context.Response.ContentEncoding = $UTF8
-				$Context.Response.ContentType = 'text/html; charset=utf8'
+				$Context.Response.ContentType = $ContentType
 
 				$Context.Response.Headers.Add('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; font-src 'none'; connect-src 'self'; media-src 'self'; object-src 'none'; child-src 'self'; frame-src 'self'; worker-src 'none'; frame-ancestors 'self'; form-action 'self'; base-uri 'self'")
 				$Context.Response.Headers.Add('X-Content-Type-Options', 'nosniff')
@@ -3806,9 +3806,19 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 				$Context.Response.Headers.Add('Referrer-Policy', 'same-origin')
 				$Context.Response.Headers.Add('Feature-Policy', "accelerometer 'none'; ambient-light-sensor 'none'; autoplay 'none'; camera 'none'; document-domain 'none'; document-write 'none'; encrypted-media 'none'; fullscreen 'none'; geolocation 'none'; gyroscope 'none'; legacy-image-formats 'none'; magnetometer 'none'; microphone 'none'; midi 'none'; payment 'none'; picture-in-picture 'none'; speaker 'none'; usb 'none'; vr 'none'")
 
-				$ResponseBody = $UTF8.GetBytes($HTML)
+				$ResponseBody = $UTF8.GetBytes($ResponseValue)
 				$Context.Response.ContentLength64 = $ResponseBody.Length
 				$Context.Response.OutputStream.Write($ResponseBody, 0, $ResponseBody.Length)
+			}
+
+			function Start-HTMLResponse ([String] $HTML)
+			{
+				Start-Response 'text/html; charset=utf8' $HTML
+			}
+
+			function Start-JSONResponse ([String] $JSON)
+			{
+				Start-Response 'application/json' $JSON
 			}
 
 			function Send-Response
@@ -3834,6 +3844,30 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 				if ($Context.Request.HttpMethod -eq 'GET' -and $Context.Request.Url.AbsolutePath -eq '/')
 				{
 					Start-HTMLResponse (& $IndexPageScriptBlock -State $State)
+
+					Send-Response
+				}
+				elseif ($Context.Request.HttpMethod -eq 'GET' -and $Context.Request.Url.AbsolutePath -eq '/check-for-updates')
+				{
+					$AvailableVersion = Get-MostRecentVersionAvailableForTinyUIFixForTS3
+
+					$Message = if ($AvailableVersion.Unknown)
+					{
+						"The check for updates failed. Please refer to <a href=`"$([TinyUIFixPSForTS3]::HomePageURL)`">$([TinyUIFixPSForTS3]::HomePageURL)</a> instead."
+					}
+					else
+					{
+						if ($AvailableVersion.Version -gt [TinyUIFixPSForTS3]::Version)
+						{
+							"Version $($AvailableVersion.Version) is available. It can be downloaded from <a href=`"$([TinyUIFixPSForTS3]::HomePageURL)`">$([TinyUIFixPSForTS3]::HomePageURL)</a>."
+						}
+						else
+						{
+							"You are using version $([TinyUIFixPSForTS3]::Version), which is the latest version."
+						}
+					}
+
+					Start-JSONResponse (ConvertTo-Json @{Message = $Message})
 
 					Send-Response
 				}
