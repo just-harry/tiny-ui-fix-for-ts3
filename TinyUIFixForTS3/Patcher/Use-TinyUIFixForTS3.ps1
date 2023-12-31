@@ -169,6 +169,18 @@ function Get-ExpectedSims3Paths
 }
 
 
+function Get-ExpectedCCMagicPath ($Sims3UserDataPath)
+{
+	Join-Path (Split-Path -LiteralPath $Sims3UserDataPath) 'CC Magic'
+}
+
+
+function Get-CCMagicSettingsPath ($CCMagicPath)
+{
+	Join-Path $CCMagicPath Settings/Settings.XML
+}
+
+
 function Test-RequiredDBPFManipulationTypesAreLoaded
 {
 	     $Null -ne ([Management.Automation.PSTypeName] 's3pi.Interfaces.TGIBlock').Type `
@@ -4246,6 +4258,79 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 }
 
 
+function Get-DirectivesFromCCMagicSettingsFile ([IO.FileInfo] $CCMagicSettingsFile)
+{
+	$XML = [Xml.XmlDocument]::new()
+
+	try
+	{
+		$XML.Load($CCMagicSettingsFile.FullName)
+	}
+	catch
+	{
+		Write-Error $_ -ErrorAction Continue
+
+		return
+	}
+
+	$ResourceCFGAdditional = $XML.SelectSingleNode('/Settings/Entry[@Key = "ResourceCFGAdditional"]')
+
+	if ($Null -eq $ResourceCFGAdditional)
+	{
+		return
+	}
+
+	$ResourceCFGAdditionalCDATA = $ResourceCFGAdditional.ChildNodes.Where({$_.NodeType -eq [Xml.XmlNodeType]::CDATA}, 'First')[0]
+
+	if ($Null -eq $ResourceCFGAdditionalCDATA)
+	{
+		return
+	}
+
+	[String[]] ($ResourceCFGAdditionalCDATA.Value -split '\r\n|\n|\r')
+}
+
+
+function Add-TinyUIFixDirectivesToCCMagicSettingsFile ([String] $Directives, [IO.FileInfo] $CCMagicSettingsFile)
+{
+	$XML = [Xml.XmlDocument]::new()
+	$XML.PreserveWhitespace = $True
+
+	try
+	{
+		$XML.Load($CCMagicSettingsFile.FullName)
+	}
+	catch
+	{
+		Write-Error $_ -ErrorAction Continue
+
+		return
+	}
+
+	$Settings = $XML.DocumentElement
+
+	$ResourceCFGAdditional = $Settings.SelectSingleNode('Entry[@Key = "ResourceCFGAdditional"]')
+
+	if ($Null -eq $ResourceCFGAdditional)
+	{
+		$ResourceCFGAdditional = $Settings.AppendChild($XML.CreateElement('Entry'))
+		$ResourceCFGAdditionalKey = $ResourceCFGAdditional.Attributes.Append($XML.CreateAttribute('Key'))
+		$ResourceCFGAdditionalKey.InnerText = 'ResourceCFGAdditional'
+	}
+
+	$ResourceCFGAdditionalCDATA = $ResourceCFGAdditional.ChildNodes.Where({$_.NodeType -eq [Xml.XmlNodeType]::CDATA}, 'First')[0]
+
+	if ($Null -eq $ResourceCFGAdditionalCDATA)
+	{
+		$ResourceCFGAdditionalCDATA = $ResourceCFGAdditional.AppendChild($XML.CreateCDataSection(''))
+	}
+
+	$ResourceCFGAdditionalCDATA.Value = "$Directives`r`n$($ResourceCFGAdditionalCDATA.Value)"
+
+	$XML.Save($CCMagicSettingsFile.FullName)
+}
+
+
 if ($Script:MyInvocation.InvocationName -ceq '.' -or $Script:MyInvocation.Line -ceq '')
 {
 	return
@@ -4500,6 +4585,17 @@ if ($FindingSims3Paths)
 			}
 		}
 	}
+
+	$CCMagicSettingsFile = Get-Item -LiteralPath (Get-CCMagicSettingsPath (Get-ExpectedCCMagicPath $Script:ExpectedSims3Paths.Sims3UserDataPath)) -ErrorAction Ignore
+
+	if (-not ($CCMagicSettingsFile -is [IO.FileInfo]))
+	{
+		$CCMagicSettingsFile = $Null
+	}
+}
+else
+{
+	$CCMagicSettingsFile = $Null
 }
 
 
@@ -4758,11 +4854,12 @@ $UltimateResult.GeneratedPackage = Get-Item -LiteralPath $GeneratedPackageFilePa
 
 if ($Null -ne $UltimateResult.GeneratedPackage)
 {
-	if (-not $NonInteractive -or $ChangeResourceCFGToLoadTinyUIFixLast)
+	if (-not $NonInteractive -or $ChangeResourceCFGToLoadTinyUIFixLast -or $AddTinyUIFixDirectivesToCCMagicSettingsFile)
 	{
 		$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation -IncludeTinyUIFixPackage -SuppressLogging
 		$PrioritiesInReverse = $FinalResolvedResourcesPriorities.PrioritisedFiles.Keys | Sort-Object -Descending
 		$TinyUIFixPackagePath = $UltimateResult.GeneratedPackage.FullName
+		$TinyUIFixPackagePriority = $Null
 		$PriorityToBeat = $Null
 		$ScaledPackagesThatAreOverwritingTinyUIFix = [Collections.Generic.List[String]]::new(0)
 
@@ -4776,6 +4873,7 @@ if ($Null -ne $UltimateResult.GeneratedPackage)
 
 				if ($File -eq $TinyUIFixPackagePath)
 				{
+					$TinyUIFixPackagePriority = $Priority
 					break ForEachPriority
 				}
 
@@ -4791,16 +4889,20 @@ if ($Null -ne $UltimateResult.GeneratedPackage)
 			}
 		}
 
-		if ($ScaledPackagesThatAreOverwritingTinyUIFix.Count -gt 0)
+		if ($Null -eq $PriorityToBeat)
 		{
-			[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
-			Write-Warning "There are packages that were scaled by the Tiny UI Fix that will be loaded after the Tiny UI Fix, which will cause the scaling to not take effect.$([Environment]::NewLine)Those packages are: $(($ScaledPackagesThatAreOverwritingTinyUIFix | % {'"{0}"' -f $_}) -join '; ')." -WarningAction Continue
+			$PriorityToBeat = $TinyUIFixPackagePriority
+		}
 
-			$PriorityToBeat = [TinyUIFixPSForTS3]::UnpackPriority($PriorityToBeat).Item1
+		$PriorityToBeat = [TinyUIFixPSForTS3]::UnpackPriority($PriorityToBeat).Item1
+
+		$AdjustFile = `
+		{
+			Param ([String] $CannotAdjustMessage, [ScriptBlock] $MakePrompt, [ScriptBlock] $Adjust)
 
 			if ($PriorityToBeat -eq [Int32]::MaxValue)
 			{
-				Write-Warning "This script would offer to adjust the Resource.cfg file for you, but a priority cannot be greater than $([Int32]::MaxValue)." -WarningAction Continue
+				Write-Warning $CannotAdjustMessage -WarningAction Continue
 			}
 			elseif (
 				$(
@@ -4809,11 +4911,64 @@ if ($Null -ne $UltimateResult.GeneratedPackage)
 
 					$ResourceCFGAddition = "Priority $($PriorityToBeat + $Adjustment)$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
 
-					$NonInteractive -or (Read-YesOrNo "$([Environment]::NewLine)Would you like to adjust the `"$ResourceCFGPath`" file to load $([TinyUIFixPSForTS3]::GeneratedPackageName) after the scaled packages?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of Resource.cfg:$([Environment]::NewLine)$ResourceCFGAddition")
+					$NonInteractive -or (Read-YesOrNo (& $MakePrompt $ResourceCFGAddition))
 				)
 			)
 			{
-				& $PrependToFile $ResourceCFGPath "$ResourceCFGAddition$([Environment]::NewLine)$([Environment]::NewLine)"
+				& $Adjust "$ResourceCFGAddition$([Environment]::NewLine)$([Environment]::NewLine)"
+			}
+		}
+
+		if ($ScaledPackagesThatAreOverwritingTinyUIFix.Count -gt 0)
+		{
+			[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
+			Write-Warning "There are packages that were scaled by the Tiny UI Fix that will be loaded after the Tiny UI Fix, which will cause the scaling to not take effect.$([Environment]::NewLine)Those packages are: $(($ScaledPackagesThatAreOverwritingTinyUIFix | % {'"{0}"' -f $_}) -join '; ')." -WarningAction Continue
+
+			& $AdjustFile `
+				"This script would offer to adjust the Resource.cfg file for you, but a priority cannot be greater than $([Int32]::MaxValue)." `
+				{Param ($Addition) "$([Environment]::NewLine)Would you like to adjust the `"$ResourceCFGPath`" file to load $([TinyUIFixPSForTS3]::GeneratedPackageName) after the scaled packages?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of Resource.cfg:$([Environment]::NewLine)$Addition"} `
+				{Param ($Addition) & $PrependToFile $ResourceCFGPath $Addition}
+		}
+
+		if ($Null -ne $CCMagicSettingsFile)
+		{
+			$CCMagicDirectiveLines = [String[]] (Get-DirectivesFromCCMagicSettingsFile $CCMagicSettingsFile)
+			$CCMagicDirectives = if ($Null -ne $CCMagicDirectiveLines) {[TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG($CCMagicDirectiveLines)} else {[String[]] @()}
+
+			$LastPriority = 0
+			$HaveTinyUIFixDirectiveInCCMagicSettings = $False
+			$PriorityForTinyUIFixDirectiveInCCMagicSettings = 0
+
+			foreach ($CCMagicDirective in $CCMagicDirectives)
+			{
+				if ($CCMagicDirective.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::Priority)
+				{
+					try
+					{
+						$PriorityValue = [Int32] $CCMagicDirective.Item2
+						$LastPriority = $PriorityValue
+					}
+					catch
+					{
+						Write-Warning "The CC Magic settings file at `"$CCMagicSettingsFile`" had an invalid value of `"$($CCMagicDirective.Item2)`" for a `"Priority`" directive in the `"Additional Resource.cfg Entries`" setting." -WarningAction Continue
+					}
+				}
+				elseif ($CCMagicDirective.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::PackedFile)
+				{
+					if (-not $HaveTinyUIFixDirectiveInCCMagicSettings -and $CCMagicDirective.Item2 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
+					{
+						$HaveTinyUIFixDirectiveInCCMagicSettings = $True
+						$PriorityForTinyUIFixDirectiveInCCMagicSettings = $LastPriority
+					}
+				}
+			}
+
+			if (-not $HaveTinyUIFixDirectiveInCCMagicSettings -or $PriorityForTinyUIFixDirectiveInCCMagicSettings -le $PriorityToBeat)
+			{
+				& $AdjustFile `
+					"This script would offer to adjust the CC Magic settings file for you, but a priority cannot be greater than $([Int32]::MaxValue)." `
+					{Param ($Addition) "$([Environment]::NewLine)Would you like to adjust the CC Magic settings file, at `"$CCMagicSettingsFile`" to ensure that $([TinyUIFixPSForTS3]::GeneratedPackageName) is loaded after a rebuild?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of the `"Additional Resource.cfg Entries`" setting:$([Environment]::NewLine)$Addition$([Environment]::NewLine)$([Environment]::NewLine)If CC Magic is open right now: it must be closed before saying yes to this, or else CC Magic will undo the changes when it is closed."} `
+					{Param ($Addition) Add-TinyUIFixDirectivesToCCMagicSettingsFile $Addition $CCMagicSettingsFile}
 			}
 		}
 	}
