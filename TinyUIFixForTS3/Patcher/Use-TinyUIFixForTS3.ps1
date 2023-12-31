@@ -1035,6 +1035,31 @@ class TinyUIFixPSForTS3
 			[Console]::WriteLine($Text)
 		}
 	}
+
+	static [Void] WriteQuicklyWithColour ([String] $Text, [ConsoleColor] $ForegroundColour, [ConsoleColor] $BackgroundColour)
+	{
+		if ($Script:NonInteractive)
+		{
+			Write-Host $Text -ForegroundColor $ForegroundColour -BackgroundColor $BackgroundColour -NoNewline
+		}
+		else
+		{
+			$OriginalForegroundColour = [Console]::ForegroundColor
+			$OriginalBackgroundColour = [Console]::BackgroundColor
+
+			try
+			{
+				[Console]::ForegroundColor = $ForegroundColour
+				[Console]::BackgroundColor = $BackgroundColour
+				[Console]::Write($Text)
+			}
+			finally
+			{
+				[Console]::ForegroundColor = $OriginalForegroundColour
+				[Console]::BackgroundColor = $OriginalBackgroundColour
+			}
+		}
+	}
 }
 
 
