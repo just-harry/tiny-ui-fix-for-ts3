@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### Version 1.1.1
+
+#### User-facing
+
+- On Windows, if the "Controlled folder access" setting is enabled and is preventing the script from writing to the user-data folder of the Sims 3 installation that's being scaled, then the script will offer to temporarily allow PowerShell to access controlled folders.
+
 ### Version 1.1.0
 
 #### User-facing
