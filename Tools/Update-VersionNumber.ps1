@@ -14,6 +14,8 @@ $AsVersionExpression = "$($Version.Major), $($Version.Minor)$(if ($Version.Build
 
 sed -b -i $(if ($IsMacOS) {''}) -E -e "s/(\bstatic\s*\[Version\]\s*\`$Version\s*=\s*\[Version\]::new\()[^\)]+/\1$AsVersionExpression/" -- (Join-Path $Data.TinyUIFixPatcherPath Use-TinyUIFixForTS3.ps1)
 sed -b -i $(if ($IsMacOS) {''}) -E -e "s:(/releases/(download/)?)v[0-9]+\.[0-9]+(\.[0-9]+)?(\.[0-9]+)?/:\1v$Version/:g" -- (Join-Path $Data.Root README.md)
+sed -b -i $(if ($IsMacOS) {''}) -E -e "s/(\bAssemblyFileVersion\s*\(\s*`")[0-9]+\.[0-9]+(\.[0-9]+)?(\.[0-9]+)?/\1$Version.0/" -- (Join-Path $Data.TinyUIFixPatchPath AssemblyInfo.cs)
+sed -b -i $(if ($IsMacOS) {''}) -E -e "s/(\bAssemblyFileVersion\s*\(\s*`")[0-9]+\.[0-9]+(\.[0-9]+)?(\.[0-9]+)?/\1$Version.0/" -- (Join-Path $Data.TinyUIFixCoreBridgePath AssemblyInfo.cs)
 
 
 $RootPath = $Data.Root
