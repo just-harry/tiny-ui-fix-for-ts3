@@ -40,6 +40,9 @@ Param (
 			[Switch] $ChangeResourceCFGToLoadTinyUIFixLast,
 
 	[Parameter()]
+			[Switch] $AddTinyUIFixDirectivesToCCMagicSettingsFile,
+
+	[Parameter()]
 			[Switch] $SkipConfigurator,
 
 	[Parameter()]
@@ -50,6 +53,12 @@ Param (
 
 	[Parameter()]
 			$DBPFManipulationLibraryPath,
+
+	[Parameter()]
+			$OverrideSims3Path,
+
+	[Parameter()]
+			$OverrideSims3UserDataPath,
 
 	[Parameter()]
 			$OutputUnpackedAssemblyDirectoryPath = $Null,
@@ -108,7 +117,7 @@ class TinyUIFixPSForTS3FailedToDownloadFileException : TinyUIFixPSForTS3Exceptio
 
 function Get-ExpectedSims3Paths
 {
-	if ($Script:IsWindows)
+	$Result = if ($Script:IsWindows)
 	{
 		[TinyUIFixPSForTS3]::WriteLineQuickly('Trying to find file-paths for your installation of The Sims 3.')
 
@@ -117,7 +126,7 @@ function Get-ExpectedSims3Paths
 			{
 				Param ($Registry)
 
-				[PSCustomObject] @{
+				[Ordered] @{
 					Sims3Path = $(if (($Key = $Registry.OpenSubKey('SOFTWARE\Sims\The Sims 3'))) {$Key.GetValue('Install Dir')})
 					S3PEPath = $(if (($Key = $Registry.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\s3pe'))) {$Key.GetValue('InstallLocation')})
 					Sims3UserDataPath = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) 'Electronic Arts/The Sims 3'
@@ -136,15 +145,27 @@ function Get-ExpectedSims3Paths
 			'/Applications/The Sims 3.app'
 		).Where({Test-Path -LiteralPath $_}, 'First')[0]
 
-		[PSCustomObject] @{
+		[Ordered] @{
 			Sims3Path = if ($Null -ne $Sims3Path) {$Sims3Path} else {'/Applications/The Sims 3.app'}
 			Sims3UserDataPath = Join-Path $Global:HOME 'Documents/Electronic Arts/The Sims 3'
 		}
 	}
 	else
 	{
-		[PSCustomObject] @{}
+		[Ordered] @{}
 	}
+
+	if ($Null -ne $OverrideSims3Path)
+	{
+		$Result.Sims3Path = $OverrideSims3Path
+	}
+
+	if ($Null -ne $OverrideSims3UserDataPath)
+	{
+		$Result.Sims3UserDataPath = $OverrideSims3UserDataPath
+	}
+
+	[PSCustomObject] $Result
 }
 
 
