@@ -49,6 +49,7 @@ $Files = @(
 	@{File = & $Get Patchsets/VanillaCoreCompatibilityPatch.ps1; Encoding = $UTF8; Destination = 'Patchsets/VanillaCoreCompatibilityPatch.ps1'}
 	@{File = & $Get Patchsets/CompatibilityPatchesForNRaasMods.ps1; Encoding = $UTF8; Destination = 'Patchsets/CompatibilityPatchesForNRaasMods.ps1'}
 	@{File = & $Get Data/ConfiguratorIndexPage.ps1; Encoding = $UTF8; Destination = 'Data/ConfiguratorIndexPage.ps1'}
+	@{File = & $Get Data/Unblock-PowerShellForControlledFolderAccess.ps1; Encoding = $UTF8; Destination = 'Data/Unblock-PowerShellForControlledFolderAccess.ps1'}
 	@{File = & $Get Data/TinyUIFixForTS3.xml; Encoding = $UTF8; Destination = 'Data/TinyUIFixForTS3.xml'}
 	@{File = & $Get Data/ScaledHorizontalScrollbarMimic.xml; Encoding = $UTF8; Destination = 'Data/ScaledHorizontalScrollbarMimic.xml'}
 	@{File = & $Get Data/ScaledHorizontalSliderMimic.xml; Encoding = $UTF8; Destination = 'Data/ScaledHorizontalSliderMimic.xml'}

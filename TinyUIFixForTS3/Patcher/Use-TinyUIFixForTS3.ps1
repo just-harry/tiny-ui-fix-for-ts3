@@ -43,6 +43,9 @@ Param (
 			[Switch] $AddTinyUIFixDirectivesToCCMagicSettingsFile,
 
 	[Parameter()]
+			[Switch] $ExcludeTemporarilyPowerShellFromControlledFolderAccessProtection,
+
+	[Parameter()]
 			[Switch] $SkipConfigurator,
 
 	[Parameter()]
@@ -4361,6 +4364,13 @@ if ($Script:MyInvocation.InvocationName -ceq '.' -or $Script:MyInvocation.Line -
 	return
 }
 
+
+$RunningScriptAsAnAdmin = $False
+$PowerShellWasWhitelistedForControlledFolderAccess = $False
+$AdminMinionEvent = $Null
+$AdminOverseerEvent = $Null
+
+
 try
 {
 	trap
@@ -4377,6 +4387,135 @@ try
 	$ShouldLoadInactivePatchsets = $UsingConfigurator -or $CheckingIfPatchsetsAreRecommended
 	$ShouldLoadPatchsets = $UsingConfigurator -or -not $SkipGenerationOfPackage -or $GetStatusOfPatchsets -or $CheckingIfPatchsetsAreRecommended -or $ShouldLoadInactivePatchsets
 	$ShouldReadPatchsets = $ShouldLoadPatchsets -or $ShouldLoadInactivePatchsets -or $GetAvailablePatchsets -or $CheckingIfPatchsetsAreRecommended
+
+
+	if ($FindingSims3Paths)
+	{
+		if ($Null -eq $Script:ExpectedSims3Paths)
+		{
+			$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
+		}
+
+		if (-not $NonInteractive)
+		{
+			if (-not (Test-Sims3Path $Script:ExpectedSims3Paths.Sims3Path -IsMacOSInstallation:$IsMacOSInstallation))
+			{
+				$Script:ExpectedSims3Paths.Sims3Path = Read-Host 'The file-path of your installation of The Sims 3 could not be automatically found, please supply the file-path of your Sims 3 installation. (It is usually a folder named "The Sims 3")'
+
+				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3Path))
+				{
+					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3Path $(if ($IsMacOSInstallation) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
+				}
+			}
+
+			if (-not (Test-Sims3UserDataPath $Script:ExpectedSims3Paths.Sims3UserDataPath))
+			{
+				$Script:ExpectedSims3Paths.Sims3UserDataPath = Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)'
+
+				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3UserDataPath))
+				{
+					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Options.ini)`" file could be found at that path."
+				}
+			}
+		}
+
+		$CCMagicSettingsFile = Get-Item -LiteralPath (Get-CCMagicSettingsPath (Get-ExpectedCCMagicPath $Script:ExpectedSims3Paths.Sims3UserDataPath)) -ErrorAction Ignore
+
+		if (-not ($CCMagicSettingsFile -is [IO.FileInfo]))
+		{
+			$CCMagicSettingsFile = $Null
+		}
+	}
+	else
+	{
+		$CCMagicSettingsFile = $Null
+	}
+
+
+	if ($Script:IsWindows -and (-not $SkipGenerationOfPackage -or $UsingConfigurator -or $ShouldLoadPatchsets))
+	{
+		$PowerShellProcess = [Diagnostics.Process]::GetCurrentProcess()
+
+		while (
+			Test-Path -LiteralPath (
+				$WriteTestPath = (
+					Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath "tiny-ui-fix-for-ts3-write-test-$([DateTime]::UtcNow.Ticks)-$($PowerShellProcess.Id)"
+				)
+			)
+		)
+		{}
+
+		try
+		{
+			[IO.File]::WriteAllBytes($WriteTestPath, [Byte[]] @(0))
+			[IO.File]::Delete($WriteTestPath)
+		}
+		catch
+		{
+			if ($_.Exception.InnerException -is [IO.FileNotFoundException] -or $_.Exception.InnerException -is [UnauthorizedAccessException])
+			{
+				$Preferences = Get-MpPreference
+
+				if (
+					     $Preferences.EnableControlledFolderAccess `
+					-and $(
+						$RunningScriptAsAnAdmin = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+						if ($ExcludeTemporarilyPowerShellFromControlledFolderAccessProtection)
+						{
+							-not $NonInteractive -or $RunningScriptAsAnAdmin
+						}
+						else
+						{
+							-not $NonInteractive -and (Read-YesOrNo "Windows' `"Controlled folder access`" is preventing PowerShell from writing to The Sims 3 user-data folder.$([Environment]::NewLine)Would you like to temporarily allow PowerShell to access folders protected by `"Controlled folder access`"?$(if (-not $RunningScriptAsAnAdmin) {' (This requires administrative privileges.)'})")
+						}
+					)
+				)
+				{
+					$SyncObjectNamePrefix = "TinyUIFixPSForTS3_v$([TinyUIFixPSForTS3]::Version)-$([DateTime]::UtcNow.Ticks)-$($PowerShellProcess.Id)"
+
+					if ($RunningScriptAsAnAdmin)
+					{
+						Add-MpPreference -ControlledFolderAccessAllowedApplications ([Diagnostics.Process]::GetCurrentProcess().Path)
+
+						$PowerShellWasWhitelistedForControlledFolderAccess = $True
+					}
+					else
+					{
+						$AdminMinionEventName = "Global\$SyncObjectNamePrefix-MinionEvent"
+						$AdminMinionEvent = [Threading.EventWaitHandle]::new($False, [Threading.EventResetMode]::AutoReset, $AdminMinionEventName)
+						$AdminOverseerEventName = "Global\$SyncObjectNamePrefix-OverseerEvent"
+						$AdminOverseerEvent = [Threading.EventWaitHandle]::new($False, [Threading.EventResetMode]::AutoReset, $AdminOverseerEventName)
+
+						try
+						{
+							Start-Process -WindowStyle Hidden -Verb RunAs -FilePath ([Diagnostics.Process]::GetCurrentProcess().Path) -ArgumentList '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f (Join-Path $PSScriptRoot Data/Unblock-PowerShellForControlledFolderAccess.ps1)), $SyncObjectNamePrefix
+
+							[TinyUIFixPSForTS3]::WriteLineQuickly('Waiting for PowerShell to be allowed to access controlled folders.')
+
+							if (-not $AdminMinionEvent.WaitOne(60000))
+							{
+								Write-Error 'PowerShell could not be exempted from "Controlled folder access".' -ErrorAction Continue
+							}
+							else
+							{
+								$PowerShellWasWhitelistedForControlledFolderAccess = $True
+							}
+						}
+						catch [InvalidOperationException]
+						{
+							if ($_.Exception.HResult -ne 0x80131509)
+							{
+								throw
+							}
+
+							Write-Error "PowerShell wasn't granted administrative privileges." -ErrorAction Continue
+						}
+					}
+				}
+			}
+		}
+	}
 
 
 	$LastPatchsetLoadOrderFilePath = Join-Path $PSScriptRoot LastPatchsetLoadOrder.txt
@@ -4586,49 +4725,6 @@ try
 				& $Patchset.Instance.InitialiseAfterLoading -Self $Patchset.Instance -State (New-PatchingState) > $Null
 			}
 		}
-	}
-
-
-	if ($FindingSims3Paths)
-	{
-		if ($Null -eq $Script:ExpectedSims3Paths)
-		{
-			$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
-		}
-
-		if (-not $NonInteractive)
-		{
-			if (-not (Test-Sims3Path $Script:ExpectedSims3Paths.Sims3Path -IsMacOSInstallation:$IsMacOSInstallation))
-			{
-				$Script:ExpectedSims3Paths.Sims3Path = Read-Host 'The file-path of your installation of The Sims 3 could not be automatically found, please supply the file-path of your Sims 3 installation. (It is usually a folder named "The Sims 3")'
-
-				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3Path))
-				{
-					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3Path $(if ($IsMacOSInstallation) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
-				}
-			}
-
-			if (-not (Test-Sims3UserDataPath $Script:ExpectedSims3Paths.Sims3UserDataPath))
-			{
-				$Script:ExpectedSims3Paths.Sims3UserDataPath = Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)'
-
-				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3UserDataPath))
-				{
-					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Options.ini)`" file could be found at that path."
-				}
-			}
-		}
-
-		$CCMagicSettingsFile = Get-Item -LiteralPath (Get-CCMagicSettingsPath (Get-ExpectedCCMagicPath $Script:ExpectedSims3Paths.Sims3UserDataPath)) -ErrorAction Ignore
-
-		if (-not ($CCMagicSettingsFile -is [IO.FileInfo]))
-		{
-			$CCMagicSettingsFile = $Null
-		}
-	}
-	else
-	{
-		$CCMagicSettingsFile = $Null
 	}
 
 
@@ -5015,5 +5111,27 @@ try
 	[PSCustomObject] $UltimateResult
 }
 finally
-{}
+{
+	if ($PowerShellWasWhitelistedForControlledFolderAccess)
+	{
+		if ($RunningScriptAsAnAdmin)
+		{
+			Remove-MpPreference -ControlledFolderAccessAllowedApplications ([Diagnostics.Process]::GetCurrentProcess().Path)
+		}
+		else
+		{
+			$AdminOverseerEvent.Set() > $Null
+
+			[TinyUIFixPSForTS3]::WriteLineQuickly("Waiting for PowerShell to be disallowed from accessing controlled folders.$([Environment]::NewLine)")
+
+			if (-not $AdminMinionEvent.WaitOne(60000))
+			{
+				Write-Error 'PowerShell could not be unexempted from "Controlled folder access".' -ErrorAction Continue
+			}
+		}
+	}
+
+	if ($Null -ne $AdminMinionEvent) {$AdminMinionEvent.Dispose()}
+	if ($Null -ne $AdminOverseerEvent) {$AdminOverseerEvent.Dispose()}
+}
 

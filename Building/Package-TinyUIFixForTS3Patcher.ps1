@@ -69,6 +69,7 @@ Get-ChildItem -LiteralPath $BuildDataPath | % {[IO.File]::Copy($_.FullName, (Joi
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath TinyUIFixForTS3.xml) -Force -Destination $TinyUIFixForTS3DataPath
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPath Use-TinyUIFixForTS3.ps1) -Force -Destination $TinyUIFixForTS3Path
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPath ConfiguratorIndexPage.ps1) -Force -Destination $TinyUIFixForTS3DataPath
+Copy-Item -LiteralPath (Join-Path $TinyUIFixPath Unblock-PowerShellForControlledFolderAccess.ps1) -Force -Destination $TinyUIFixForTS3DataPath
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath ScaledVerticalScrollbarMimic.xml) -Force -Destination $TinyUIFixForTS3DataPath
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath ScaledHorizontalScrollbarMimic.xml) -Force -Destination $TinyUIFixForTS3DataPath
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath ScaledVerticalSliderMimic.xml) -Force -Destination $TinyUIFixForTS3DataPath
