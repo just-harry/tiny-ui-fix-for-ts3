@@ -284,6 +284,20 @@ class TinyUIFixForTS3Logger
 }
 
 
+enum TinyUIFixForTS3ResourceCFGDirective
+{
+	DirectoryFiles
+	End
+	FileType
+	Group
+	PackedFile
+	Priority
+	Scan
+	Select
+	StopScan
+}
+
+
 class TinyUIFixPSForTS3
 {
 	static [Version] $Version = [Version]::new(1, 0, 5)
@@ -305,47 +319,298 @@ class TinyUIFixPSForTS3
 	static [String] $HexResourceKeyRegExPattern = '0x(?<ResourceType>[0-9A-Fa-f]{8})-0x(?<ResourceGroup>[0-9A-Fa-f]{8})-0x(?<Instance>[0-9A-Fa-f]{16})'
 
 	static [RegEx] $GlobSegmentEscapeRegEx = [RegEx]::new('(\*+)|(\?+)|([^\*\?]+)', [Text.RegularExpressions.RegexOptions]::Compiled)
+	static [RegEx] $GlobSegmentOnlyWildcardsRegEx = [RegEx]::new('^[\*\?]+$', [Text.RegularExpressions.RegexOptions]::Compiled)
+	static [RegEx] $GlobSegmentAnyWildcardsRegEx = [RegEx]::new('[\*\?]', [Text.RegularExpressions.RegexOptions]::Compiled)
 
 	static [RegEx[]] $PathDelimiterRegExes = @([RegEx]::new('/', [Text.RegularExpressions.RegexOptions]::Compiled), [RegEx]::new('[/\\]', [Text.RegularExpressions.RegexOptions]::Compiled))
 
-	static [RegEx] $ResourceCFGLineRegEx = [RegEx]::new(
-		'^\s*((?<Priority>Priority\s+(?<PriorityValue>-?[0-9]+))|(?<PackedFile>PackedFile\s+(?<PackedFileValue>\S.*)))\s*$',
-		[Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [Text.RegularExpressions.RegexOptions]::Compiled
+	static [HashTable] $ResourceCFGDirectiveMap = @{
+		DirectoryFiles = [TinyUIFixForTS3ResourceCFGDirective]::DirectoryFiles
+		End = [TinyUIFixForTS3ResourceCFGDirective]::End
+		FileType = [TinyUIFixForTS3ResourceCFGDirective]::FileType
+		Group = [TinyUIFixForTS3ResourceCFGDirective]::Group
+		PackedFile = [TinyUIFixForTS3ResourceCFGDirective]::PackedFile
+		Priority = [TinyUIFixForTS3ResourceCFGDirective]::Priority
+		Scan = [TinyUIFixForTS3ResourceCFGDirective]::Scan
+		Select = [TinyUIFixForTS3ResourceCFGDirective]::Select
+		StopScan = [TinyUIFixForTS3ResourceCFGDirective]::StopScan
+	}
+
+	static [RegEx] $ResourceCFGLineRegEx = $(
+		$FirstOperand = '(?:\s+(?<Operand>[^"\s]+)|\s*"(?<Operand>[^"]*)")?'
+		$Operand = '(?:\s+[^"\s]+|\s*"[^"]*")?'
+
+		[RegEx]::new(
+			"^\s*(?<Directive>DirectoryFiles|End|FileType|Group|PackedFile|Priority|Scan|Select|StopScan)$FirstOperand(?:$Operand(?:\s*,$Operand)*)?\s*$",
+			[Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [Text.RegularExpressions.RegexOptions]::Compiled
+		)
 	)
 
 
-	static [PSCustomObject] ResolveResourcePriorities (
-		[Collections.Generic.IEnumerable[ValueTuple[String, Int32]]] $PackedFileDirectives,
-		[Collections.Generic.IEnumerable[String]] $FileNamesToIgnore,
+	static [Collections.Generic.List[IO.DirectoryInfo]] AncestorsOfFileSystemInfoUntil ([IO.FileSystemInfo] $Item, [IO.DirectoryInfo] $Directory)
+	{
+		$CurrentDirectory = if ($Item.Parent -is [IO.DirectoryInfo]) {$Item} else {$Item.Directory}
+		$Ancestors = [Collections.Generic.List[IO.DirectoryInfo]]::new(4)
+
+		do
+		{
+			if ($CurrentDirectory.FullName -ceq $Directory.FullName)
+			{
+				return $Ancestors
+			}
+
+			$Ancestors.Add($CurrentDirectory)
+		}
+		while ($CurrentDirectory = $CurrentDirectory.Parent)
+
+		return $Null
+	}
+
+
+	static [PSCustomObject] ExtractPackedFileDirectivesFromResourceCFG (
+		[Collections.Generic.IEnumerable[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] $RootDirectives,
 		[IO.DirectoryInfo] $BaseDirectory,
-		[Bool] $IsModDirectory,
-		[Int32] $MinimumDepth
+		[IO.FileInfo] $BaseFile,
+		[ScriptBlock] $ExtractDirectivesFromResourceCFGAtPath,
+		[Bool] $BackslashAsPathDelimiter
 	)
 	{
-		return [TinyUIFixPSForTS3]::ResolveResourcePriorities($PackedFileDirectives, $FileNamesToIgnore, $BaseDirectory, $IsModDirectory, $MinimumDepth, $Script:IsWindows)
+		$AllDirectives = [Collections.Generic.List[ValueTuple[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object], UInt32, Object]]]::new($RootDirectives.Count)
+		$DirectoriesNotToScanFrom = [Collections.Generic.HashSet[String]]::new(0)
+
+		$GatherDirectives = `
+		{
+			Param ($Directives, [Int32] $Depth, [IO.DirectoryInfo] $CurrentDirectory, [IO.FileInfo] $File, [String] $CurrentPrefix, [Bool] $RespectStopScan)
+
+			$ShouldStopScanning = [ValueTuple[Bool]]::new($False)
+
+			foreach ($Directive in $Directives)
+			{
+				if ($Directive.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::Priority)
+				{
+					$AllDirectives.Add([ValueTuple[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object], UInt32, Object]]::new($Directive, $Depth, $Null))
+				}
+				elseif ($Directive.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::PackedFile -or $Directive.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::DirectoryFiles)
+				{
+					if ($Directive.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::PackedFile)
+					{
+						$AllDirectives.Add([ValueTuple[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object], UInt32, Object]]::new($Directive, $Depth, $CurrentPrefix))
+					}
+
+					if (-not $ShouldStopScanning.Item1 -and $Null -ne $Directive.Item2)
+					{
+						$Globs = [TinyUIFixPSForTS3]::ResolveResourceCFGGlobRelativity($Directive.Item2, $BackslashAsPathDelimiter)
+						$OnlyWildcardsMap = $Globs | % {[TinyUIFixPSForTS3]::GlobSegmentOnlyWildcardsRegEx.IsMatch($_)}
+
+						if ($Null -ne $Globs)
+						{
+							$ScanForResourceCFGFiles = `
+							{
+								Param ([IO.DirectoryInfo] $Directory, [Int32] $SubDirectoryDepth, [String] $Prefix)
+
+								$SubDirectories = $Directory.GetDirectories()
+								$Comparer = [StringComparer]::InvariantCulture
+								[Array]::Sort($SubDirectories, [Comparison[IO.DirectoryInfo]] {Param ($A, $B) $Comparer.Compare($A.Name, $B.Name)})
+
+								$GlobRegEx = [RegEx]::new(
+									"^$([TinyUIFixPSForTS3]::ResourceCFGGlobSegmentToRegExPattern($Globs[$SubDirectoryDepth]))$",
+									[Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [Text.RegularExpressions.RegexOptions]::Compiled
+								)
+
+								foreach ($SubDirectory in $SubDirectories)
+								{
+									if ($GlobRegEx.IsMatch($SubDirectory.Name))
+									{
+										$ResourceCFG = Get-Item -LiteralPath (Join-Path $SubDirectory.FullName Resource.cfg) -ErrorAction Ignore
+										$ShouldStopScanningInSubDirectories = $False
+
+										if ($ResourceCFG -is [IO.FileInfo])
+										{
+											$SubDirectoryPrefix = $Prefix + $(if ($Prefix.Length -eq 0) {''} else {'/'}) + $SubDirectory.Name
+											$Result = & $GatherDirectives (& $ExtractDirectivesFromResourceCFGAtPath $ResourceCFG.FullName) ($Depth + 1 + $SubDirectoryDepth) $SubDirectory $ResourceCFG $SubDirectoryPrefix (-not $OnlyWildcardsMap[$SubDirectoryDepth])
+
+											if ($Result.ShouldStopScanning)
+											{
+												$DirectoriesNotToScanFrom.Add($SubDirectoryPrefix)
+												$ShouldStopScanningInSubDirectories = $True
+											}
+										}
+
+										if (-not $ShouldStopScanningInSubDirectories -and $SubDirectoryDepth + 1 -lt $Globs.Count)
+										{
+											& $ScanForResourceCFGFiles $SubDirectory ($SubDirectoryDepth + 1) ($Prefix + $(if ($Prefix.Length -eq 0) {''} else {'/'}) + $SubDirectory.Name)
+										}
+									}
+								}
+							}
+
+							& $ScanForResourceCFGFiles $CurrentDirectory 0 $CurrentPrefix
+						}
+					}
+				}
+				elseif ($Directive.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::Scan)
+				{
+					if ($Null -ne $Directive.Item2)
+					{
+						$FullPath = if ([IO.Path]::IsPathRooted($Directive.Item2))
+						{
+							$Directive.Item2
+						}
+						else
+						{
+							Join-Path $CurrentDirectory.FullName $Directive.Item2
+						}
+
+						$Item = Get-Item -LiteralPath $FullPath -ErrorAction Ignore
+
+						if ($Item -is [IO.DirectoryInfo] -and ($Ancestors = [TinyUIFixPSForTS3]::AncestorsOfFileSystemInfoUntil($Item, $BaseDirectory)))
+						{
+							$ResourceCFG = Get-Item -LiteralPath (Join-Path $Item.FullName Resource.cfg) -ErrorAction Ignore
+
+							if ($ResourceCFG -is [IO.FileInfo])
+							{
+								$Ancestors.Reverse()
+
+								& $GatherDirectives (& $ExtractDirectivesFromResourceCFGAtPath $ResourceCFG.FullName) ($Depth + 1 + $Ancestors.Count) $ResourceCFG.Directory $ResourceCFG ($Ancestors.Name -join '/') $True > $Null
+							}
+						}
+					}
+				}
+				elseif ($Directive.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::StopScan)
+				{
+					$DirectoriesNotToScanFrom.Add($CurrentPrefix)
+					$ShouldStopScanning.Item1 = $True
+				}
+				elseif ($Directive.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::Select)
+				{
+					Write-Warning "A `"Select`" directive was encountered in the Resource.cfg file at `"$File`". This script does not understand the `"Select`" directive. Please inform the author of the Tiny UI Fix of your usage of the `"Select`" directive, as the author does not understand how it is used." -WarningAction	Continue
+				}
+			}
+
+			@{ShouldStopScanning = $ShouldStopScanning.Item1}
+		}
+
+		& $GatherDirectives $RootDirectives 0 $BaseDirectory $BaseFile '' $True
+
+		$Directives = [Collections.Generic.List[ValueTuple[String, Int32, UInt32, Int32]]]::new($AllDirectives.Count)
+		$LastPriority = 0
+		$Index = 0
+
+		foreach ($Directive in $AllDirectives)
+		{
+			if ($Directive.Item1.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::Priority)
+			{
+				try
+				{
+					$PriorityValue = [Int32] $Directive.Item1.Item2
+					$LastPriority = $PriorityValue
+				}
+				catch
+				{
+					Write-Warning "A Resource.cfg file had an invalid value of `"$($Directive.Item1.Item2)`" for a `"Priority`" directive." -WarningAction Continue
+				}
+			}
+			else
+			{
+				$Directives.Add(
+					[ValueTuple[String, Int32, UInt32, Int32]]::new(
+						$Directive.Item3 + $(if ($Directive.Item3.Length -eq 0) {''} else {'/'}) + $Directive.Item1.Item2,
+						$LastPriority,
+						$Directive.Item2,
+						$Index
+					)
+				)
+
+				++$Index
+			}
+		}
+
+		return [PSCustomObject] @{Directives = $Directives; DirectoriesNotToScanFrom = $DirectoriesNotToScanFrom}
+	}
+
+
+	static [ScriptBlock] MakePackedFileDirectivesByPrecendenceComparator ([Bool] $BackslashAsPathDelimiter)
+	{
+		$PathDelimiterRegEx = [TinyUIFixPSForTS3]::PathDelimiterRegExes[$BackslashAsPathDelimiter]
+
+		return `
+		{
+			Param ($A, $B)
+
+			$DepthComparison = $B.Item3.CompareTo($A.Item3)
+
+			if ($DepthComparison -ne 0)
+			{
+				return $DepthComparison
+			}
+
+			$SegmentsA = $PathDelimiterRegEx.Split($A.Item1)
+			$SegmentsB = $PathDelimiterRegEx.Split($B.Item1)
+			$CommonSegmentLength = $(if ($SegmentsA.Count -le $SegmentsB.Count) {$SegmentsA} else {$SegmentsB}).Count
+			$Length = $CommonSegmentLength - 1
+
+			for ($Index = 0; $Index -lt $Length; ++$Index)
+			{
+				if (-not [TinyUIFixPSForTS3]::GlobSegmentAnyWildcardsRegEx.IsMatch($SegmentsA[$Index]))
+				{
+					if ([TinyUIFixPSForTS3]::GlobSegmentAnyWildcardsRegEx.IsMatch($SegmentsB[$Index]))
+					{
+						return -1
+					}
+				}
+				elseif (-not [TinyUIFixPSForTS3]::GlobSegmentAnyWildcardsRegEx.IsMatch($SegmentsB[$Index]))
+				{
+					return 1
+				}
+			}
+
+			# Keep the comparison stable.
+			$A.Item4.CompareTo($B.Item4)
+		}.GetNewClosure()
 	}
 
 
 	static [PSCustomObject] ResolveResourcePriorities (
-		[Collections.Generic.IEnumerable[ValueTuple[String, Int32]]] $PackedFileDirectives,
+		[Collections.Generic.IEnumerable[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] $Directives,
 		[Collections.Generic.IEnumerable[String]] $FileNamesToIgnore,
 		[IO.DirectoryInfo] $BaseDirectory,
+		[IO.FileInfo] $BaseFile,
 		[Bool] $IsModDirectory,
-		[Int32] $MinimumDepth,
+		[ScriptBlock] $ExtractDirectivesFromResourceCFGAtPath,
+		[Bool] $SuppressLogging
+	)
+	{
+		return [TinyUIFixPSForTS3]::ResolveResourcePriorities($Directives, $FileNamesToIgnore, $BaseDirectory, $BaseFile, $IsModDirectory, $ExtractDirectivesFromResourceCFGAtPath, $SuppressLogging, $Script:IsWindows)
+	}
+
+
+	static [PSCustomObject] ResolveResourcePriorities (
+		[Collections.Generic.IEnumerable[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] $RootDirectives,
+		[Collections.Generic.IEnumerable[String]] $FileNamesToIgnore,
+		[IO.DirectoryInfo] $BaseDirectory,
+		[IO.FileInfo] $BaseFile,
+		[Bool] $IsModDirectory,
+		[ScriptBlock] $ExtractDirectivesFromResourceCFGAtPath,
+		[Bool] $SuppressLogging,
 		[Bool] $BackslashAsPathDelimiter
 	)
 	{
-		$Directives = [Linq.Enumerable]::OrderBy(
-			$PackedFileDirectives,
-			[Func[ValueTuple[String, Int32], String]] {Param ($D) $D.Item1},
-			[StringComparer]::InvariantCultureIgnoreCase
-		)
+		$Extracted = [TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG($RootDirectives, $BaseDirectory, $BaseFile, $ExtractDirectivesFromResourceCFGAtPath, $BackslashAsPathDelimiter)
+		$Directives = $Extracted.Directives
+		$DirectoriesNotToScanFrom = $Extracted.DirectoriesNotToScanFrom
+
+		$Directives.Sort([Comparison[ValueTuple[String, Int32, UInt32, Int32]]] [TinyUIFixPSForTS3]::MakePackedFileDirectivesByPrecendenceComparator($BackslashAsPathDelimiter))
+
+		if (-not $SuppressLogging)
+		{
+			[TinyUIFixPSForTS3]::WriteLineQuickly("The Resource.cfg file at `"$BaseFile`" was resolved as follows:$([Environment]::NewLine)`tPackedFile directives: $($Directives -join '; ')$([Environment]::NewLine)`tDirectories not to scan from: $(($DirectoriesNotToScanFrom.GetEnumerator() | Sort-Object | % {'"{0}"' -f $_}) -join '; ')")
+		}
 
 		$GreatestDepth = 0
 
 		$DirectiveGlobs = foreach ($Directive in $Directives)
 		{
-			$Globs = [TinyUIFixPSForTS3]::ResolveResourceCFGGlobRelativity($Directive.Item1, $BackslashAsPathDelimiter, $MinimumDepth)
+			$Globs = [TinyUIFixPSForTS3]::ResolveResourceCFGGlobRelativity($Directive.Item1, $BackslashAsPathDelimiter)
 
 			if ($Null -eq $Globs) {continue}
 
@@ -373,6 +638,11 @@ class TinyUIFixPSForTS3
 			{
 				$Files = [Collections.Generic.HashSet[String]]::new()
 				$FilesByDepth[$Depth] = $Files
+			}
+
+			if ($DirectoriesNotToScanFrom.Contains($Prefix))
+			{
+				return
 			}
 
 			$Directory.EnumerateFileSystemInfos() | ForEach-Object `
@@ -470,9 +740,9 @@ class TinyUIFixPSForTS3
 	}
 
 
-	static [Collections.Generic.List[String]] ResolveResourceCFGGlobRelativity ([String] $Glob, [Bool] $BackslashAsPathDelimiter, [Int32] $MinimumDepth)
+	static [Collections.Generic.List[String]] ResolveResourceCFGGlobRelativity ([String] $Glob, [Bool] $BackslashAsPathDelimiter)
 	{
-		$Segments = [TinyUIFixPSForTS3]::PathDelimiterRegExes[$BackslashAsPathDelimiter].Split([String[]] $Glob, [StringSplitOptions]::None)
+		$Segments = [TinyUIFixPSForTS3]::PathDelimiterRegExes[$BackslashAsPathDelimiter].Split($Glob)
 		$Resolved = [Collections.Generic.List[String]]::new($Segments.Length)
 		$NegativeDepth = 0
 
@@ -484,18 +754,19 @@ class TinyUIFixPSForTS3
 				{
 					$Resolved.RemoveAt($Resolved.Count - 1)
 				}
-				elseif (-$NegativeDepth -gt $MinimumDepth)
+				else
 				{
 					++$NegativeDepth
 					$Resolved.Add($Segment)
 				}
-				else
-				{
-					return $Null
-				}
 			}
 			elseif ($Segment -cne '.')
 			{
+				if ([IO.Path]::IsPathRooted($Segment))
+				{
+					return $Null
+				}
+
 				$Resolved.Add($Segment)
 			}
 		}
@@ -504,31 +775,39 @@ class TinyUIFixPSForTS3
 	}
 
 
-	static [Collections.Generic.IEnumerable[ValueTuple[String, Int32]]] ExtractPackedFileDirectivesFromResourceCFG (
+	static [Collections.Generic.IEnumerable[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] ExtractDirectivesFromResourceCFGAtPath (
+		[String] $FilePath
+	)
+	{
+		if (Test-Path -LiteralPath $FilePath)
+		{
+			return [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG([String[]] (Get-Content -LiteralPath $FilePath -ErrorAction Stop))
+		}
+		else
+		{
+			return $Null
+		}
+	}
+
+
+	static [Collections.Generic.IEnumerable[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] ExtractDirectivesFromResourceCFG (
 		[Collections.Generic.IEnumerable[String]] $CFGLines
 	)
 	{
-		return [ValueTuple[String, Int32][]] (
-			& `
+		return [ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object][]] $(
+			$Priority = 0
+			$Lines = $CFGLines.GetEnumerator()
+
+			while ($Lines.MoveNext())
 			{
-				$Priority = 0
-				$Lines = $CFGLines.GetEnumerator()
+				$Match = [TinyUIFixPSForTS3]::ResourceCFGLineRegEx.Match($Lines.Current)
 
-				while ($Lines.MoveNext())
+				if ($Match.Success)
 				{
-					$Match = [TinyUIFixPSForTS3]::ResourceCFGLineRegEx.Match($Lines.Current)
-
-					if ($Match.Success)
-					{
-						if (($Group = $Match.Groups['PriorityValue']).Success)
-						{
-							$Priority = [Int32] $Group.Value
-						}
-						elseif (($Group = $Match.Groups['PackedFileValue']).Success)
-						{
-							[ValueTuple[String, Int32]]::new($Group.Value, $Priority)
-						}
-					}
+					[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]::new(
+						[TinyUIFixPSForTS3]::ResourceCFGDirectiveMap[$Match.Groups[1].Value],
+						$(if ($Match.Groups[2].Success) {$Match.Groups[2].Value} else {$Null})
+					)
 				}
 			}
 		)
@@ -923,7 +1202,7 @@ function Find-ResourcesAcrossPackages (
 }
 
 
-function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [String] $Sims3UserDataPath, [ScriptBlock] $TransformGameBinResourceCFG, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage)
+function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [String] $Sims3UserDataPath, [ScriptBlock] $TransformGameBinResourceCFG, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage, [Switch] $SuppressLogging)
 {
 	[TinyUIFixPSForTS3]::WriteLineQuickly("Resolving the resource priorities for the Sims 3 installation at `"$Sims3Path`" with the user-data at `"$Sims3UserDataPath`".")
 
@@ -944,11 +1223,13 @@ function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [S
 		}
 
 		$GameSubPriorities = [TinyUIFixPSForTS3]::ResolveResourcePriorities(
-			[TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG($GameSubResourceCFG),
+			[TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG($GameSubResourceCFG),
 			[String[]] @(),
 			$GameSubDirectory,
+			(Get-Item -LiteralPath $GameSubResourceCFGPath -ErrorAction Stop),
 			$False,
-			-2
+			{Param ($FilePath) [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFGAtPath($FilePath)},
+			$SuppressLogging
 		)
 
 		foreach ($Entry in $GameSubPriorities.PrioritisedFiles.GetEnumerator())
@@ -998,11 +1279,13 @@ function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [S
 	[TinyUIFixPSForTS3]::WriteLineQuickly("Checking the mods folder at `"$ModsDirectoryPath`".")
 
 	$ModPriorities = [TinyUIFixPSForTS3]::ResolveResourcePriorities(
-		[TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG([String[]] $ModsResourceCFG),
+		[TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG([String[]] $ModsResourceCFG),
 		[String[]] @($(if (-not $IncludeTinyUIFixPackage) {[TinyUIFixPSForTS3]::GeneratedPackageName})),
 		$ModsDirectory,
+		(Get-Item -LiteralPath $ModsResourceCFGPath -ErrorAction Stop),
 		$True,
-		0
+		{Param ($FilePath) [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFGAtPath($FilePath)},
+		$SuppressLogging
 	)
 
 	foreach ($Entry in $ModPriorities.PrioritisedFiles.GetEnumerator())
@@ -3446,13 +3729,14 @@ function Test-Sims3UserDataPath ($Sims3UserDataPath)
 }
 
 
-function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ([String] $Sims3Path, [String] $Sims3UserDataPath, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage)
+function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ([String] $Sims3Path, [String] $Sims3UserDataPath, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage, [Switch] $SuppressLogging)
 {
 	Resolve-ResourcePrioritiesForSims3Installation `
 		-Sims3Path $Sims3Path `
 		-Sims3UserDataPath $Sims3UserDataPath `
 		-IsMacOSInstallation:$IsMacOSInstallation `
 		-IncludeTinyUIFixPackage:$IncludeTinyUIFixPackage `
+		-SuppressLogging:$SuppressLogging `
 		-TransformGameBinResourceCFG `
 		{
 			Param ($Lines)
@@ -4397,7 +4681,9 @@ if (-not (Test-Path -LiteralPath $ResourceCFGPath))
 else
 {
 	$ResourceCFGLines = [String[]] (Get-Content -LiteralPath $ResourceCFGPath -ErrorAction Stop)
-	$PackedFileDirectives = [TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG($ResourceCFGLines)
+	$Extracted = [TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG([TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG($ResourceCFGLines), (Get-Item -LiteralPath $ModsPath -ErrorAction Stop), (Get-Item -LiteralPath $ResourceCFGPath -ErrorAction Stop), {Param ($FilePath) [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFGAtPath($FilePath)}, $Script:IsWindows)
+	$PackedFileDirectives = $Extracted.Directives
+
 	$GreatestPriority = 0
 	$HaveTinyUIFixDirective = $False
 
@@ -4408,7 +4694,7 @@ else
 			$GreatestPriority = $PackedFileDirective.Item2
 		}
 
-		if (-not $HaveTinyUIFixDirective -and $PackedFileDirective.Item1 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
+		if (-not $HaveTinyUIFixDirective -and $PackedFileDirective.Item3 -eq 0 -and $PackedFileDirective.Item1 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
 		{
 			$HaveTinyUIFixDirective = $True
 		}
@@ -4453,7 +4739,7 @@ if ($Null -ne $UltimateResult.GeneratedPackage)
 {
 	if (-not $NonInteractive -or $ChangeResourceCFGToLoadTinyUIFixLast)
 	{
-		$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation -IncludeTinyUIFixPackage
+		$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation -IncludeTinyUIFixPackage -SuppressLogging
 		$PrioritiesInReverse = $FinalResolvedResourcesPriorities.PrioritisedFiles.Keys | Sort-Object -Descending
 		$TinyUIFixPackagePath = $UltimateResult.GeneratedPackage.FullName
 		$PriorityToBeat = $Null
