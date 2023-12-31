@@ -2123,7 +2123,7 @@ function Apply-PatchesToResources (
 
 				try
 				{
-					$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Configuration.Nucleus.UIScale, $State.RegisteredExtraLayoutScalers)
+					$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Patchsets.Nucleus.Instance.EffectiveUIScale, $State.RegisteredExtraLayoutScalers)
 				}
 				catch
 				{
@@ -2158,7 +2158,7 @@ function Apply-PatchesToResources (
 			$StyleSheet = [s3pi.WrapperDealer.WrapperDealer]::GetResource(1, $FromPackage, $IndexEntry)
 			$CSS = [IO.StreamReader]::new($StyleSheet.Stream, $UTF8).ReadToEnd()
 
-			$CSS = [TinyUIFixForTS3Patcher.StyleSheetScaler]::ScaleStyleSheetBy($CSS, $State.Configuration.Nucleus.UIScale)
+			$CSS = [TinyUIFixForTS3Patcher.StyleSheetScaler]::ScaleStyleSheetBy($CSS, $State.Patchsets.Nucleus.Instance.EffectiveTextScale)
 
 			$StyleSheet = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::_CSSTypeID)
 			[IO.StreamWriter]::new($StyleSheet.Stream, $UTF8).Write($CSS)

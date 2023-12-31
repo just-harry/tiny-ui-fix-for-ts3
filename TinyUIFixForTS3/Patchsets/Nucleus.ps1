@@ -16,6 +16,9 @@ $PatchsetDefinitionSchemaVersion = 1
 	FriendlyName = 'Nucleus of Tiny UI Fix for The Sims 3'
 	Description = 'The nucleus of Tiny UI Fix for The Sims 3. It is required for the generated package to function.'
 
+	EffectiveUIScale = [Float] 1
+	EffectiveTextScale = [Float] 1
+
 	MakeDefaultConfiguration = `
 	{
 		Param ($Self)
@@ -44,6 +47,30 @@ $PatchsetDefinitionSchemaVersion = 1
 				[Float] 1
 			}
 		}
+
+		$State.Configuration.Nucleus.TextScale = if (
+			    $Null -eq $State.Configuration.Nucleus.TextScale `
+			-or ($State.Configuration.Nucleus.TextScale -is [String] -and [String]::IsNullOrWhiteSpace($State.Configuration.Nucleus.TextScale))
+		)
+		{
+			$Null
+		}
+		else
+		{
+			try
+			{
+				[Float] $State.Configuration.Nucleus.TextScale
+			}
+			catch
+			{
+				$State.Logger.WriteWarning("The value of `"$($State.Configuration.Nucleus.TextScale)`" for Nucleus.TextScale couldn't be coerced to a float, so it's being defaulted to the value of Nucleus.UIScale.")
+
+				$State.Configuration.Nucleus.UIScale
+			}
+		}
+
+		$Self.EffectiveUIScale = $State.Configuration.Nucleus.UIScale
+		$Self.EffectiveTextScale = if ($Null -ne $State.Configuration.Nucleus.TextScale) {$State.Configuration.Nucleus.TextScale} else {$State.Configuration.Nucleus.UIScale}
 	}
 
 	DuringUIScaling = @{
