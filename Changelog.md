@@ -11,6 +11,7 @@ And, `Resource.cfg` files that have been edited by CC Magic can now be correctly
 - Evaluation of `Resource.cfg` files is now more accurate to how the game processes such files. \
 Previously, only the `Priority` and `PackedFile` directives were recognised, and only a subset of their possible usage was recognised. With this update, the `Priority`, `PackedFile`, `DirectoryFiles`, `Scan`, and `StopScan` directives are recognised; additionally, quoted directive operands are now recognised, as are directives with comma-separated arguments following their operands. Nested `Resource.cfg` files that are implicitly referenced via a `PackedFile` or `DirectoryFiles` directive are also evaluated.
 - `Use-TinyUIFixForTS3.ps1` now has two parameters which can be used to override the paths for the installation of The Sims 3 that's being patched, they are: `OverrideSims3Path` and `OverrideSims3UserDataPath`. The primary purpose of these parameters is to enable non-interactive usage of the script on platforms other than Windows and macOS.
+- The game's text can now be scaled independently of the game's UI. (As suggested by u/U_Cam_Sim_It on Reddit).
 
 #### Developer-side
 
