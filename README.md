@@ -73,11 +73,16 @@ The script prompting you to start the configurator:
 ![configurator-prompt](https://github.com/just-harry/tiny-ui-fix-for-ts3/assets/12306246/8fab41c5-db33-42b3-808a-9a4d193d919a)
 
 What the configurator looks like:
-![configurator-screen](https://github.com/just-harry/tiny-ui-fix-for-ts3/assets/12306246/947f7634-12ff-42cc-82b5-ad09bc121406)
+![configurator-screen](https://github.com/just-harry/tiny-ui-fix-for-ts3/assets/12306246/28212569-a74e-4718-a8c1-c6077ceabe55)
 
 The configurator is used as follows: \
-At the left, we have the "Configuration" panel, this is used to configure the active patchsets, at the moment the only option is "UI Scale" which is a multiplier which controls how big the game's UI is.
-A value of one would keep the UI the same size as it normally is, whereas a value of two would make the UI twice as big as usual.
+At the left, we have the "Configuration" panel, this is used to configure the active patchsets.
+
+At the moment there are two options: \
+**UI Scale**: which is a multiplier which controls how big the game's UI is.
+A value of one would keep the UI the same size as it normally is, whereas a value of two would make the UI twice as big as usual. \
+**Text Scale**: which is a multiplier which controls how big the game's text is; by default, this is the same as the UI Scale. \
+This is independent of the UI Scale, so if the Text Scale is set to be much larger than the UI Scale: text may overlap other elements of the UI.
 
 ---
 
@@ -101,6 +106,7 @@ Lastly, we're now at the rightmost panel, which is the "Actions" panel, this is 
 "**Generate package**" will make the script start generating the `tiny-ui-fix.package` file. \
 "**Export load-order**" will write the current patchset load-order to the "Import/Export" text-box. \
 "**Import load-order**" will read and use a patchset load-order from the "Import/Export" text-box. \
+"**Check for updates**" will check if there are any updates available for the Tiny UI Fix. \
 "**Cancel**" will cancel any changes that have been made, and will cause the script to exit.
 
 ---
@@ -111,7 +117,7 @@ On Windows, if you have S3PE installed its copy of s3pi will be used.
 
 ## Compatibility
 
-Tiny UI Fix has been developed for and tested with version 1.67 of The Sims 3, but it should be compatible with version 1.69, and hopefully version 1.70.
+Tiny UI Fix has been developed for and tested with version 1.67 of The Sims 3, but it should be compatible with version 1.69, and version 1.70.
 
 Thanks to the dynamic nature with which this mod is generated, it should be compatible with the vast majority of mods, including core mods, such as the NRaas Industries suite of mods.
 However, mods which perform hard-coded adjustments to UI coordinates or dimensions via C# DLLs will require a patch for full compatibility, otherwise some elements of the game's UI may be incorrectly positioned or sized. \
