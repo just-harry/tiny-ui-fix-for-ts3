@@ -4361,648 +4361,659 @@ if ($Script:MyInvocation.InvocationName -ceq '.' -or $Script:MyInvocation.Line -
 	return
 }
 
-
-$UsingConfigurator = -not $NonInteractive -and -not $SkipConfigurator
-$CheckingIfPatchsetsAreRecommended = $UsingConfigurator -or $GetPatchsetRecommendations
-$ResolvingResourcePriorities = -not $SkipGenerationOfPackage -or $GetResolvedPackagePriorities -or $UsingConfigurator -or $CheckingIfPatchsetsAreRecommended
-$FindingSims3Paths = $ResolvingResourcePriorities
-$ShouldLoadInactivePatchsets = $UsingConfigurator -or $CheckingIfPatchsetsAreRecommended
-$ShouldLoadPatchsets = $UsingConfigurator -or -not $SkipGenerationOfPackage -or $GetStatusOfPatchsets -or $CheckingIfPatchsetsAreRecommended -or $ShouldLoadInactivePatchsets
-$ShouldReadPatchsets = $ShouldLoadPatchsets -or $ShouldLoadInactivePatchsets -or $GetAvailablePatchsets -or $CheckingIfPatchsetsAreRecommended
-
-
-$LastPatchsetLoadOrderFilePath = Join-Path $PSScriptRoot LastPatchsetLoadOrder.txt
-$LastPatchsetConfigurationFilePath = Join-Path $PSScriptRoot LastPatchsetConfiguration.json
-
-
-$LoadOrderNotExplicitlySetByUser = $Null -eq $Script:PSBoundParameters.PatchsetLoadOrder
-
-
-if ($Null -eq $PatchsetLoadOrder -and (Test-Path -LiteralPath $LastPatchsetLoadOrderFilePath))
+try
 {
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Reading the load-order for patchsets from `"$LastPatchsetLoadOrderFilePath`".")
-
-	$LastLoadOrder = Get-Content -Raw -LiteralPath $LastPatchsetLoadOrderFilePath -ErrorAction Continue
-
-	if ($Null -ne $LastLoadOrder)
+	trap
 	{
-		$PatchsetLoadOrder = ($LastLoadOrder -split '\s+').Where{$_}
-		$LoadOrderNotExplicitlySetByUser = $False
+		[TinyUIFixPSForTS3]::WriteQuicklyWithColour(($_ | Out-String), $Global:Host.PrivateData.ErrorForegroundColor, $Global:Host.PrivateData.ErrorBackgroundColor)
+
+		continue
 	}
-}
+
+	$UsingConfigurator = -not $NonInteractive -and -not $SkipConfigurator
+	$CheckingIfPatchsetsAreRecommended = $UsingConfigurator -or $GetPatchsetRecommendations
+	$ResolvingResourcePriorities = -not $SkipGenerationOfPackage -or $GetResolvedPackagePriorities -or $UsingConfigurator -or $CheckingIfPatchsetsAreRecommended
+	$FindingSims3Paths = $ResolvingResourcePriorities
+	$ShouldLoadInactivePatchsets = $UsingConfigurator -or $CheckingIfPatchsetsAreRecommended
+	$ShouldLoadPatchsets = $UsingConfigurator -or -not $SkipGenerationOfPackage -or $GetStatusOfPatchsets -or $CheckingIfPatchsetsAreRecommended -or $ShouldLoadInactivePatchsets
+	$ShouldReadPatchsets = $ShouldLoadPatchsets -or $ShouldLoadInactivePatchsets -or $GetAvailablePatchsets -or $CheckingIfPatchsetsAreRecommended
 
 
-if ($Null -eq $PatchsetConfiguration -and (Test-Path -LiteralPath $LastPatchsetConfigurationFilePath))
-{
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Reading the configurations for patchsets from `"$LastPatchsetConfigurationFilePath`".")
+	$LastPatchsetLoadOrderFilePath = Join-Path $PSScriptRoot LastPatchsetLoadOrder.txt
+	$LastPatchsetConfigurationFilePath = Join-Path $PSScriptRoot LastPatchsetConfiguration.json
 
-	$LastConfiguration = Get-Content -Raw -LiteralPath $LastPatchsetConfigurationFilePath -ErrorAction Continue
 
-	if ($Null -ne $LastConfiguration)
+	$LoadOrderNotExplicitlySetByUser = $Null -eq $Script:PSBoundParameters.PatchsetLoadOrder
+
+
+	if ($Null -eq $PatchsetLoadOrder -and (Test-Path -LiteralPath $LastPatchsetLoadOrderFilePath))
 	{
-		$ConvertFromJsonArguments = if ($PSVersionTable.PSVersion.Major -le 5) {@{}} else {@{Depth = [TinyUIFixPSForTS3]::MaximumPatchsetConfigurationFileDepth; AsHashtable = $True}}
-		$ParsedLastConfiguration = ConvertFrom-Json $LastConfiguration @ConvertFromJsonArguments -ErrorAction Continue
+		[TinyUIFixPSForTS3]::WriteLineQuickly("Reading the load-order for patchsets from `"$LastPatchsetLoadOrderFilePath`".")
 
-		if ($Null -ne $ParsedLastConfiguration)
+		$LastLoadOrder = Get-Content -Raw -LiteralPath $LastPatchsetLoadOrderFilePath -ErrorAction Continue
+
+		if ($Null -ne $LastLoadOrder)
 		{
-			$PatchsetConfiguration = if ($PSVersionTable.PSVersion.Major -le 5)
-			{
-				[TinyUIFixPSForTS3]::RecursivelyMergeIntoDictionary([Ordered] @{}, $ParsedLastConfiguration)
-			}
-			else
-			{
-				$ParsedLastConfiguration
-			}
+			$PatchsetLoadOrder = ($LastLoadOrder -split '\s+').Where{$_}
+			$LoadOrderNotExplicitlySetByUser = $False
 		}
 	}
-}
 
 
-if ($Null -eq $PatchsetConfiguration)
-{
-	$PatchsetConfiguration = @{}
-}
-
-
-if ($UsingConfigurator)
-{
-	$DataPath = Join-Path $PSScriptRoot Data
-	$ReadConfiguratorIndexPageTask = [IO.StreamReader]::new(
-		[IO.FileStream]::new((Join-Path $DataPath ConfiguratorIndexPage.ps1), [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete),
-		[Text.UTF8Encoding]::new($False, $False)
-	).ReadToEndAsync()
-}
-
-
-if ($ShouldReadPatchsets -and -not (Test-RequiredDBPFManipulationTypesAreLoaded))
-{
-	Find-DBPFManipulationAssemblies | % {Add-Type -LiteralPath $_.FullName}
-
-	if (-not $NonInteractive)
+	if ($Null -eq $PatchsetConfiguration -and (Test-Path -LiteralPath $LastPatchsetConfigurationFilePath))
 	{
-		if (-not (Test-RequiredDBPFManipulationTypesAreLoaded))
+		[TinyUIFixPSForTS3]::WriteLineQuickly("Reading the configurations for patchsets from `"$LastPatchsetConfigurationFilePath`".")
+
+		$LastConfiguration = Get-Content -Raw -LiteralPath $LastPatchsetConfigurationFilePath -ErrorAction Continue
+
+		if ($Null -ne $LastConfiguration)
 		{
-			if ($IsWindowsOrMacOS)
+			$ConvertFromJsonArguments = if ($PSVersionTable.PSVersion.Major -le 5) {@{}} else {@{Depth = [TinyUIFixPSForTS3]::MaximumPatchsetConfigurationFileDepth; AsHashtable = $True}}
+			$ParsedLastConfiguration = ConvertFrom-Json $LastConfiguration @ConvertFromJsonArguments -ErrorAction Continue
+
+			if ($Null -ne $ParsedLastConfiguration)
 			{
-				if (Read-YesOrNo "To manipulate Sims 3 package files this program requires a library with an S3PI-compatible interface: no such library was found on this computer.$([Environment]::NewLine)Would you like to download S3PI by Peter Jones (https://s3pi.sourceforge.net) now?")
+				$PatchsetConfiguration = if ($PSVersionTable.PSVersion.Major -le 5)
 				{
-					$BinariesPath = Join-Path $PSScriptRoot Binaries
-					$7zCommandNames = if ($IsWindows) {'7zr', '7z'} else {'7zz'}
-					$7z = $Null
-
-					if ($Null -eq $7zCommandNames.Where({Test-Path -LiteralPath ($7z = Join-Path $BinariesPath $_)}, 'First')[0] -and $Null -eq $7zCommandNames.Where({($7z = (Get-Command $_ -ErrorAction Ignore).Source)}, 'First')[0])
-					{
-						if (Read-YesOrNo "7-zip is required to extract a downloaded copy of S3PI by Peter Jones: 7-zip was not found on this computer.$([Environment]::NewLine)Would you like to download 7-zip by Igor Pavlov (https://www.7-zip.org) now?")
-						{
-							if ($IsWindows)
-							{
-								$7z = Use-FileWhatIsDownloadedIfNecessary $7ZipWindowsFileDescription $BinariesPath `
-								{
-									Param ($File, $Description)
-									$File.FullName
-								}
-							}
-							else
-							{
-								$7z = Use-FileWhatIsDownloadedIfNecessary $7ZipMacOSFileDescription $BinariesPath `
-								{
-									Param ($File, $Description)
-									tar -x -J -C $BinariesPath -s /^License\.txt$/7zz_License.txt/ -f $File.FullName -- 7zz License.txt
-									Join-Path $BinariesPath 7zz
-								}
-							}
-
-							Unblock-File -LiteralPath $7z
-						}
-					}
-
-					$DBPFPath = Join-Path $BinariesPath DBPF
-					New-Item -ItemType Directory -Force -Path $DBPFPath > $Null
-
-					Use-FileWhatIsDownloadedIfNecessary $S3PIByPeterJonesFileDescription $DBPFPath `
-					{
-						Param ($File, $Description)
-
-						& $7z x "-o$DBPFPath" -- $File.FullName > $Null
-
-						Find-DBPFManipulationAssemblies $DBPFPath | % {Add-Type -LiteralPath $_.FullName}
-					}
+					[TinyUIFixPSForTS3]::RecursivelyMergeIntoDictionary([Ordered] @{}, $ParsedLastConfiguration)
+				}
+				else
+				{
+					$ParsedLastConfiguration
 				}
 			}
-			else
-			{
-				Write-Host "To manipulate Sims 3 package files this program requires a library with an S3PI-compatible interface: no such library was found on this computer.$([Environment]::NewLine)This program would offer to download S3PI by Peter Jones (https://s3pi.sourceforge.net) for you, but that feature is implemented only for Windows and macOS."
-			}
 		}
 	}
 
-	Initialize-TinyUIFixResourceKeys
-}
 
-
-$UltimateResult = @{}
-
-
-if ($Null -ne $Script:PSBoundParameters.InstallationPlatform)
-{
-	if ($InstallationPlatform -eq 'macOS')
+	if ($Null -eq $PatchsetConfiguration)
 	{
-		$IsMacOSInstallation = $True
+		$PatchsetConfiguration = @{}
 	}
-	elseif ($InstallationPlatform -eq 'Windows')
+
+
+	if ($UsingConfigurator)
 	{
-		$IsMacOSInstallation = $False
+		$DataPath = Join-Path $PSScriptRoot Data
+		$ReadConfiguratorIndexPageTask = [IO.StreamReader]::new(
+			[IO.FileStream]::new((Join-Path $DataPath ConfiguratorIndexPage.ps1), [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete),
+			[Text.UTF8Encoding]::new($False, $False)
+		).ReadToEndAsync()
+	}
+
+
+	if ($ShouldReadPatchsets -and -not (Test-RequiredDBPFManipulationTypesAreLoaded))
+	{
+		Find-DBPFManipulationAssemblies | % {Add-Type -LiteralPath $_.FullName}
+
+		if (-not $NonInteractive)
+		{
+			if (-not (Test-RequiredDBPFManipulationTypesAreLoaded))
+			{
+				if ($IsWindowsOrMacOS)
+				{
+					if (Read-YesOrNo "To manipulate Sims 3 package files this program requires a library with an S3PI-compatible interface: no such library was found on this computer.$([Environment]::NewLine)Would you like to download S3PI by Peter Jones (https://s3pi.sourceforge.net) now?")
+					{
+						$BinariesPath = Join-Path $PSScriptRoot Binaries
+						$7zCommandNames = if ($IsWindows) {'7zr', '7z'} else {'7zz'}
+						$7z = $Null
+
+						if ($Null -eq $7zCommandNames.Where({Test-Path -LiteralPath ($7z = Join-Path $BinariesPath $_)}, 'First')[0] -and $Null -eq $7zCommandNames.Where({($7z = (Get-Command $_ -ErrorAction Ignore).Source)}, 'First')[0])
+						{
+							if (Read-YesOrNo "7-zip is required to extract a downloaded copy of S3PI by Peter Jones: 7-zip was not found on this computer.$([Environment]::NewLine)Would you like to download 7-zip by Igor Pavlov (https://www.7-zip.org) now?")
+							{
+								if ($IsWindows)
+								{
+									$7z = Use-FileWhatIsDownloadedIfNecessary $7ZipWindowsFileDescription $BinariesPath `
+									{
+										Param ($File, $Description)
+										$File.FullName
+									}
+								}
+								else
+								{
+									$7z = Use-FileWhatIsDownloadedIfNecessary $7ZipMacOSFileDescription $BinariesPath `
+									{
+										Param ($File, $Description)
+										tar -x -J -C $BinariesPath -s /^License\.txt$/7zz_License.txt/ -f $File.FullName -- 7zz License.txt
+										Join-Path $BinariesPath 7zz
+									}
+								}
+
+								Unblock-File -LiteralPath $7z
+							}
+						}
+
+						$DBPFPath = Join-Path $BinariesPath DBPF
+						New-Item -ItemType Directory -Force -Path $DBPFPath > $Null
+
+						Use-FileWhatIsDownloadedIfNecessary $S3PIByPeterJonesFileDescription $DBPFPath `
+						{
+							Param ($File, $Description)
+
+							& $7z x "-o$DBPFPath" -- $File.FullName > $Null
+
+							Find-DBPFManipulationAssemblies $DBPFPath | % {Add-Type -LiteralPath $_.FullName}
+						}
+					}
+				}
+				else
+				{
+					Write-Host "To manipulate Sims 3 package files this program requires a library with an S3PI-compatible interface: no such library was found on this computer.$([Environment]::NewLine)This program would offer to download S3PI by Peter Jones (https://s3pi.sourceforge.net) for you, but that feature is implemented only for Windows and macOS."
+				}
+			}
+		}
+
+		Initialize-TinyUIFixResourceKeys
+	}
+
+
+	$UltimateResult = @{}
+
+
+	if ($Null -ne $Script:PSBoundParameters.InstallationPlatform)
+	{
+		if ($InstallationPlatform -eq 'macOS')
+		{
+			$IsMacOSInstallation = $True
+		}
+		elseif ($InstallationPlatform -eq 'Windows')
+		{
+			$IsMacOSInstallation = $False
+		}
+		else
+		{
+			Write-Error "`"$InstallationPlatform`" is not a valid value for the InstallationPlatform parameter. It must be either `"Windows`" or `"macOS`"." -ErrorAction Stop
+		}
 	}
 	else
 	{
-		Write-Error "`"$InstallationPlatform`" is not a valid value for the InstallationPlatform parameter. It must be either `"Windows`" or `"macOS`"." -ErrorAction Stop
+		$IsMacOSInstallation = $IsMacOS
 	}
-}
-else
-{
-	$IsMacOSInstallation = $IsMacOS
-}
 
 
-$PatchingState = New-PatchingState
+	$PatchingState = New-PatchingState
 
 
-if ($ShouldReadPatchsets)
-{
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Reading patchsets from `"$(Join-Path $PSScriptRoot Patchsets)`".")
-
-	$AvailablePatchsets = Read-AvailablePatchsets
-
-	if ($GetAvailablePatchsets)
+	if ($ShouldReadPatchsets)
 	{
-		$UltimateResult.AvailablePatchsets = $AvailablePatchsets
-	}
-}
+		[TinyUIFixPSForTS3]::WriteLineQuickly("Reading patchsets from `"$(Join-Path $PSScriptRoot Patchsets)`".")
 
+		$AvailablePatchsets = Read-AvailablePatchsets
 
-if ($ShouldLoadPatchsets)
-{
-	[TinyUIFixPSForTS3]::WriteLineQuickly('Resolving the load-order for patchsets.')
-
-	$LoadOrder = Resolve-PatchsetLoadOrder $PatchsetLoadOrder $AvailablePatchsets.PatchsetsByID -LoadOrderNotExplicitlySetByUser:$LoadOrderNotExplicitlySetByUser
-	$LoadedPatchsets = Load-Patchsets $AvailablePatchsets -State $PatchingState -LoadOrder $LoadOrder -ConfigurationObject $PatchsetConfiguration
-
-	if ($GetStatusOfPatchsets)
-	{
-		$UltimateResult.PatchsetStatus = [PSCustomObject] @{
-			LoadOrder = $LoadOrder
-			Active = $LoadedPatchsets.Patchsets
-			FailedToImport = $LoadedPatchsets.FailedToImport
+		if ($GetAvailablePatchsets)
+		{
+			$UltimateResult.AvailablePatchsets = $AvailablePatchsets
 		}
 	}
-}
 
 
-if ($ShouldLoadInactivePatchsets)
-{
-	$UnloadedPatchsetIDs = $AvailablePatchsets.PatchsetsByID.Keys.Where{-not $LoadOrder.ByID.ContainsKey($_)}
-	$ImportedInactivePatchsets = Import-Patchsets $AvailablePatchsets.PatchsetsByID @{ByIndex = $UnloadedPatchsetIDs}
-
-	foreach ($FailedImport in $ImportedInactivePatchsets.FailedToImport)
+	if ($ShouldLoadPatchsets)
 	{
-		Write-Error -ErrorAction Continue "An error occurred when loading the patchset at `"$($FailedImport.Item1)`". The error was:$([Environment]::NewLine)$($FailedImport.Item2)"
-	}
+		[TinyUIFixPSForTS3]::WriteLineQuickly('Resolving the load-order for patchsets.')
 
-	foreach ($Patchset in $ImportedInactivePatchsets.Patchsets)
-	{
-		if ($Patchset.Instance.InitialiseAfterLoading -is [ScriptBlock])
+		$LoadOrder = Resolve-PatchsetLoadOrder $PatchsetLoadOrder $AvailablePatchsets.PatchsetsByID -LoadOrderNotExplicitlySetByUser:$LoadOrderNotExplicitlySetByUser
+		$LoadedPatchsets = Load-Patchsets $AvailablePatchsets -State $PatchingState -LoadOrder $LoadOrder -ConfigurationObject $PatchsetConfiguration
+
+		if ($GetStatusOfPatchsets)
 		{
-			[TinyUIFixPSForTS3]::WriteLineQuickly("Initialising the `"$($Patchset.Definition.ID)`" patchset after loading it.")
-
-			$State.Logger.CurrentPatchset = $Patchset
-			& $Patchset.Instance.InitialiseAfterLoading -Self $Patchset.Instance -State (New-PatchingState) > $Null
-		}
-	}
-}
-
-
-if ($FindingSims3Paths)
-{
-	if ($Null -eq $Script:ExpectedSims3Paths)
-	{
-		$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
-	}
-
-	if (-not $NonInteractive)
-	{
-		if (-not (Test-Sims3Path $Script:ExpectedSims3Paths.Sims3Path -IsMacOSInstallation:$IsMacOSInstallation))
-		{
-			$Script:ExpectedSims3Paths.Sims3Path = Read-Host 'The file-path of your installation of The Sims 3 could not be automatically found, please supply the file-path of your Sims 3 installation. (It is usually a folder named "The Sims 3")'
-
-			if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3Path))
-			{
-				Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3Path $(if ($IsMacOSInstallation) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
-			}
-		}
-
-		if (-not (Test-Sims3UserDataPath $Script:ExpectedSims3Paths.Sims3UserDataPath))
-		{
-			$Script:ExpectedSims3Paths.Sims3UserDataPath = Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)'
-
-			if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3UserDataPath))
-			{
-				Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Options.ini)`" file could be found at that path."
+			$UltimateResult.PatchsetStatus = [PSCustomObject] @{
+				LoadOrder = $LoadOrder
+				Active = $LoadedPatchsets.Patchsets
+				FailedToImport = $LoadedPatchsets.FailedToImport
 			}
 		}
 	}
 
-	$CCMagicSettingsFile = Get-Item -LiteralPath (Get-CCMagicSettingsPath (Get-ExpectedCCMagicPath $Script:ExpectedSims3Paths.Sims3UserDataPath)) -ErrorAction Ignore
 
-	if (-not ($CCMagicSettingsFile -is [IO.FileInfo]))
+	if ($ShouldLoadInactivePatchsets)
+	{
+		$UnloadedPatchsetIDs = $AvailablePatchsets.PatchsetsByID.Keys.Where{-not $LoadOrder.ByID.ContainsKey($_)}
+		$ImportedInactivePatchsets = Import-Patchsets $AvailablePatchsets.PatchsetsByID @{ByIndex = $UnloadedPatchsetIDs}
+
+		foreach ($FailedImport in $ImportedInactivePatchsets.FailedToImport)
+		{
+			Write-Error -ErrorAction Continue "An error occurred when loading the patchset at `"$($FailedImport.Item1)`". The error was:$([Environment]::NewLine)$($FailedImport.Item2)"
+		}
+
+		foreach ($Patchset in $ImportedInactivePatchsets.Patchsets)
+		{
+			if ($Patchset.Instance.InitialiseAfterLoading -is [ScriptBlock])
+			{
+				[TinyUIFixPSForTS3]::WriteLineQuickly("Initialising the `"$($Patchset.Definition.ID)`" patchset after loading it.")
+
+				$State.Logger.CurrentPatchset = $Patchset
+				& $Patchset.Instance.InitialiseAfterLoading -Self $Patchset.Instance -State (New-PatchingState) > $Null
+			}
+		}
+	}
+
+
+	if ($FindingSims3Paths)
+	{
+		if ($Null -eq $Script:ExpectedSims3Paths)
+		{
+			$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
+		}
+
+		if (-not $NonInteractive)
+		{
+			if (-not (Test-Sims3Path $Script:ExpectedSims3Paths.Sims3Path -IsMacOSInstallation:$IsMacOSInstallation))
+			{
+				$Script:ExpectedSims3Paths.Sims3Path = Read-Host 'The file-path of your installation of The Sims 3 could not be automatically found, please supply the file-path of your Sims 3 installation. (It is usually a folder named "The Sims 3")'
+
+				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3Path))
+				{
+					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3Path $(if ($IsMacOSInstallation) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
+				}
+			}
+
+			if (-not (Test-Sims3UserDataPath $Script:ExpectedSims3Paths.Sims3UserDataPath))
+			{
+				$Script:ExpectedSims3Paths.Sims3UserDataPath = Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)'
+
+				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3UserDataPath))
+				{
+					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Options.ini)`" file could be found at that path."
+				}
+			}
+		}
+
+		$CCMagicSettingsFile = Get-Item -LiteralPath (Get-CCMagicSettingsPath (Get-ExpectedCCMagicPath $Script:ExpectedSims3Paths.Sims3UserDataPath)) -ErrorAction Ignore
+
+		if (-not ($CCMagicSettingsFile -is [IO.FileInfo]))
+		{
+			$CCMagicSettingsFile = $Null
+		}
+	}
+	else
 	{
 		$CCMagicSettingsFile = $Null
 	}
-}
-else
-{
-	$CCMagicSettingsFile = $Null
-}
 
 
-$ModsPath = Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Mods
-$OverridesPath = Join-Path $ModsPath Overrides
-$ResourceCFGPath = Join-Path $ModsPath Resource.cfg
-$TinyUIFixModFolderPath = Join-Path $ModsPath ([TinyUIFixPSForTS3]::ModsFolderName)
+	$ModsPath = Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Mods
+	$OverridesPath = Join-Path $ModsPath Overrides
+	$ResourceCFGPath = Join-Path $ModsPath Resource.cfg
+	$TinyUIFixModFolderPath = Join-Path $ModsPath ([TinyUIFixPSForTS3]::ModsFolderName)
 
 
-if (-not $SkipGenerationOfPackage)
-{
-	$OldGeneratedPackageFilePath = Join-Path $OverridesPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
-	<# Version 1.0.3-and-older of this mod stored the package in the Overrides folder, so we delete it
-	   to prevent new installations from conflicting with old installations. #>
-	Remove-Item -LiteralPath $OldGeneratedPackageFilePath -Force -ErrorAction Ignore
-}
-
-
-if ($ResolvingResourcePriorities)
-{
-	$ResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation
-}
-
-
-if ($CheckingIfPatchsetsAreRecommended)
-{
-	$PatchsetRecommendationsByID = @{}
-
-	$CheckPatchsetRecommendations = `
+	if (-not $SkipGenerationOfPackage)
 	{
-		Param ($PatchsetsByID)
+		$OldGeneratedPackageFilePath = Join-Path $OverridesPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
+		<# Version 1.0.3-and-older of this mod stored the package in the Overrides folder, so we delete it
+		   to prevent new installations from conflicting with old installations. #>
+		Remove-Item -LiteralPath $OldGeneratedPackageFilePath -Force -ErrorAction Ignore
+	}
 
-		foreach ($Patchset in $PatchsetsByID.Values)
+
+	if ($ResolvingResourcePriorities)
+	{
+		$ResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation
+	}
+
+
+	if ($CheckingIfPatchsetsAreRecommended)
+	{
+		$PatchsetRecommendationsByID = @{}
+
+		$CheckPatchsetRecommendations = `
 		{
-			$Recommendation = Test-PatchsetIsRecommended $Patchset $ResolvedResourcesPriorities.AllActiveModPackages
+			Param ($PatchsetsByID)
 
-			if ($Recommendation.IsRecommended)
+			foreach ($Patchset in $PatchsetsByID.Values)
 			{
-				$PatchsetRecommendationsByID[$Patchset.Definition.ID] = $Recommendation
+				$Recommendation = Test-PatchsetIsRecommended $Patchset $ResolvedResourcesPriorities.AllActiveModPackages
+
+				if ($Recommendation.IsRecommended)
+				{
+					$PatchsetRecommendationsByID[$Patchset.Definition.ID] = $Recommendation
+				}
 			}
+		}
+
+		& $CheckPatchsetRecommendations $LoadedPatchsets.Patchsets
+		& $CheckPatchsetRecommendations $ImportedInactivePatchsets.Patchsets
+
+		if ($GetPatchsetRecommendations)
+		{
+			$UltimateResult.PatchsetRecommendationsByID = $PatchsetRecommendationsByID
 		}
 	}
 
-	& $CheckPatchsetRecommendations $LoadedPatchsets.Patchsets
-	& $CheckPatchsetRecommendations $ImportedInactivePatchsets.Patchsets
 
-	if ($GetPatchsetRecommendations)
+	if ($GetResolvedPackagePriorities)
 	{
-		$UltimateResult.PatchsetRecommendationsByID = $PatchsetRecommendationsByID
-	}
-}
-
-
-if ($GetResolvedPackagePriorities)
-{
-	$FilesWithUnpackedPriorities = foreach ($Entry in $ResolvedResourcesPriorities.PrioritisedFiles.GetEnumerator())
-	{
-		$Unpacked = [TinyUIFixPSForTS3]::UnpackPriority($Entry.Key)
-		[PSCustomObject] @{Priority = $Unpacked.Item1; Depth = $Unpacked.Item2; IsMod = $Unpacked.Item3; Files = $Entry.Value}
-	}
-
-	$ResolvedResourcesPrioritiesOutput = [PSCustomObject] @{
-		GameBinDirectory = $ResolvedResourcesPriorities.GameBinDirectory
-		GameSharedDirectory = $ResolvedResourcesPriorities.GameSharedDirectory
-		ModsDirectory = $ResolvedResourcesPriorities.ModsDirectory
-		FilesByPackedPriority = $ResolvedResourcesPriorities.PrioritisedFiles
-		FilesWithUnpackedPriorities = $FilesWithUnpackedPriorities
-		AllActiveModPackages = $ResolvedResourcesPriorities.AllActiveModPackages
-	}
-
-	$UltimateResult.ResolvedPackagePriorities = $ResolvedResourcesPrioritiesOutput
-}
-
-
-if ($SkipGenerationOfPackage -and -not $UsingConfigurator)
-{
-	return [PSCustomObject] $UltimateResult
-}
-
-
-if ($UsingConfigurator)
-{
-	$AvailablePatchsetsForConfigurator = [Collections.Generic.List[PSCustomObject]]::new()
-
-	$AddPatchsets = `
-	{
-		Param ($PatchsetsByID)
-
-		foreach ($Patchset in $PatchsetsByID.Values)
+		$FilesWithUnpackedPriorities = foreach ($Entry in $ResolvedResourcesPriorities.PrioritisedFiles.GetEnumerator())
 		{
-			$AvailablePatchsetsForConfigurator.Add(
-				$(
-					$Name = $Patchset.Instance.FriendlyName
-					$Description = $Patchset.Instance.Description
+			$Unpacked = [TinyUIFixPSForTS3]::UnpackPriority($Entry.Key)
+			[PSCustomObject] @{Priority = $Unpacked.Item1; Depth = $Unpacked.Item2; IsMod = $Unpacked.Item3; Files = $Entry.Value}
+		}
 
-					if (-not ($Name -is [String]))
-					{
-						$Name = if ($Null -eq $Name) {$Patchset.Definition.ID} else {try {$Name.ToString()} catch {$Patchset.Definition.ID}}
-					}
+		$ResolvedResourcesPrioritiesOutput = [PSCustomObject] @{
+			GameBinDirectory = $ResolvedResourcesPriorities.GameBinDirectory
+			GameSharedDirectory = $ResolvedResourcesPriorities.GameSharedDirectory
+			ModsDirectory = $ResolvedResourcesPriorities.ModsDirectory
+			FilesByPackedPriority = $ResolvedResourcesPriorities.PrioritisedFiles
+			FilesWithUnpackedPriorities = $FilesWithUnpackedPriorities
+			AllActiveModPackages = $ResolvedResourcesPriorities.AllActiveModPackages
+		}
 
-					if (-not ($Description -is [String]))
-					{
-						$Description = if ($Null -eq $Description) {[String]::Empty} else {try {$Description.ToString()} catch {[String]::Empty}}
-					}
+		$UltimateResult.ResolvedPackagePriorities = $ResolvedResourcesPrioritiesOutput
+	}
 
-					$Data = @{
-						ID = $Patchset.Definition.ID
-						Version = $Patchset.Definition.Version
-						Name = $Name
-						Description = $Description
-					}
 
-					$Recommendation = $PatchsetRecommendationsByID[$Patchset.Definition.ID]
+	if ($SkipGenerationOfPackage -and -not $UsingConfigurator)
+	{
+		return [PSCustomObject] $UltimateResult
+	}
 
-					if ($LoadOrder.ByID.ContainsKey($Patchset.Definition.ID)) {$Data.Active = $True}
-					if ($Patchset.Definition.ID -eq 'Nucleus') {$Data.FixedActiveState = $True}
-					if ($Null -ne $Recommendation) {$Data.RecommendationMessage = $Recommendation.RecommendationMessage}
 
-					$Data
+	if ($UsingConfigurator)
+	{
+		$AvailablePatchsetsForConfigurator = [Collections.Generic.List[PSCustomObject]]::new()
+
+		$AddPatchsets = `
+		{
+			Param ($PatchsetsByID)
+
+			foreach ($Patchset in $PatchsetsByID.Values)
+			{
+				$AvailablePatchsetsForConfigurator.Add(
+					$(
+						$Name = $Patchset.Instance.FriendlyName
+						$Description = $Patchset.Instance.Description
+
+						if (-not ($Name -is [String]))
+						{
+							$Name = if ($Null -eq $Name) {$Patchset.Definition.ID} else {try {$Name.ToString()} catch {$Patchset.Definition.ID}}
+						}
+
+						if (-not ($Description -is [String]))
+						{
+							$Description = if ($Null -eq $Description) {[String]::Empty} else {try {$Description.ToString()} catch {[String]::Empty}}
+						}
+
+						$Data = @{
+							ID = $Patchset.Definition.ID
+							Version = $Patchset.Definition.Version
+							Name = $Name
+							Description = $Description
+						}
+
+						$Recommendation = $PatchsetRecommendationsByID[$Patchset.Definition.ID]
+
+						if ($LoadOrder.ByID.ContainsKey($Patchset.Definition.ID)) {$Data.Active = $True}
+						if ($Patchset.Definition.ID -eq 'Nucleus') {$Data.FixedActiveState = $True}
+						if ($Null -ne $Recommendation) {$Data.RecommendationMessage = $Recommendation.RecommendationMessage}
+
+						$Data
+					)
 				)
-			)
-		}
-	}
-
-	& $AddPatchsets $LoadedPatchsets.Patchsets
-	& $AddPatchsets $ImportedInactivePatchsets.Patchsets
-
-	$AvailablePatchsetsForConfigurator = $AvailablePatchsetsForConfigurator | Sort-Object -Property @{
-		Expression = {"$(if ($_.ID -eq 'Nucleus') {0} elseif ($_.ID -eq 'VanillaCoreCompatibilityPatch') {1} else {2})$($_.Name)$($_.ID)"}
-	}
-
-	[TinyUIFixPSForTS3]::WriteLineQuickly([Environment]::NewLine)
-
-	$ConfiguratorInvocation = Invoke-Configurator `
-		-Port $(if ($Null -ne $Script:PSBoundParameters.ConfiguratorPort) {$ConfiguratorPort}) `
-		-PageContents @{Index = $ReadConfiguratorIndexPageTask.GetAwaiter().GetResult()} `
-		-State @{
-			UIScale = $PatchingState.Configuration.Nucleus.UIScale
-			TextScale = $PatchingState.Configuration.Nucleus.TextScale
-			LoadOrder = $LoadOrder
-			AvailablePatchsets = $AvailablePatchsetsForConfigurator
-		} `
-		-Actions @{
-			GeneratePackage = `
-			{
-				@{StopListening = $True; Result = 'abc'}
 			}
 		}
 
-	if (-not $ConfiguratorInvocation.Cancelled)
-	{
-		$ConfiguratorLoadOrder = $ConfiguratorInvocation.RequestBody.patchsetLoadOrder -split '\s+'
-		[TinyUIFixPSForTS3]::RecursivelyMergeIntoDictionary($PatchsetConfiguration, $ConfiguratorInvocation.RequestBody.patchsetConfiguration) > $Null
+		& $AddPatchsets $LoadedPatchsets.Patchsets
+		& $AddPatchsets $ImportedInactivePatchsets.Patchsets
 
-		$LoadOrder = Resolve-PatchsetLoadOrder $ConfiguratorLoadOrder $AvailablePatchsets.PatchsetsByID
-		$PatchingState = New-PatchingState
-		$LoadedPatchsets = Load-Patchsets $AvailablePatchsets -State $PatchingState -LoadOrder $LoadOrder -ConfigurationObject $PatchsetConfiguration
-	}
-}
-
-
-New-Item $LastPatchsetLoadOrderFilePath -Force -Value "$($LoadOrder.ByIndex -join ([Environment]::NewLine))$([Environment]::NewLine)" > $Null
-New-Item $LastPatchsetConfigurationFilePath -Force -Value "$(ConvertTo-Json $PatchsetConfiguration -Depth ([TinyUIFixPSForTS3]::MaximumPatchsetConfigurationFileDepth))$([Environment]::NewLine)" > $Null
-
-
-if ($SkipGenerationOfPackage)
-{
-	return [PSCustomObject] $UltimateResult
-}
-
-
-$PrependToFile = `
-{
-	Param ($FilePath, $Text)
-
-	$UTF8 = [Text.UTF8Encoding]::new($False, $False)
-
-	try
-	{
-		$ExistingData = [IO.File]::ReadAllBytes($FilePath)
-	}
-	catch [IO.FileNotFoundException]
-	{
-		$ExistingData = [Byte[]] @()
-	}
-
-	$ConcatenatedData = $UTF8.GetBytes($Text) + $ExistingData
-	[IO.File]::WriteAllBytes($FilePath, $ConcatenatedData)
-}
-
-
-if (-not (Test-Path -LiteralPath $ResourceCFGPath))
-{
-	New-Item -ItemType Directory -Force -Path $ModsPath -ErrorAction Stop > $Null
-
-	[TinyUIFixPSForTS3]::WriteLineQuickly("A Resource.cfg file for mods could not be found, so one is being created one at: `"$ResourceCFGPath`".")
-
-	$SeedResourceCFG = "Priority 10000$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
-	& $PrependToFile $ResourceCFGPath "$SeedResourceCFG$([Environment]::NewLine)"
-}
-else
-{
-	$ResourceCFGLines = [String[]] (Get-Content -LiteralPath $ResourceCFGPath -ErrorAction Stop)
-	$Extracted = [TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG([TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG($ResourceCFGLines), (Get-Item -LiteralPath $ModsPath -ErrorAction Stop), (Get-Item -LiteralPath $ResourceCFGPath -ErrorAction Stop), {Param ($FilePath) [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFGAtPath($FilePath)}, $Script:IsWindows)
-	$PackedFileDirectives = $Extracted.Directives
-
-	$GreatestPriority = 0
-	$HaveTinyUIFixDirective = $False
-
-	foreach ($PackedFileDirective in $PackedFileDirectives)
-	{
-		if ($PackedFileDirective.Item2 -gt $GreatestPriority)
-		{
-			$GreatestPriority = $PackedFileDirective.Item2
+		$AvailablePatchsetsForConfigurator = $AvailablePatchsetsForConfigurator | Sort-Object -Property @{
+			Expression = {"$(if ($_.ID -eq 'Nucleus') {0} elseif ($_.ID -eq 'VanillaCoreCompatibilityPatch') {1} else {2})$($_.Name)$($_.ID)"}
 		}
 
-		if (-not $HaveTinyUIFixDirective -and $PackedFileDirective.Item3 -eq 0 -and $PackedFileDirective.Item1 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
-		{
-			$HaveTinyUIFixDirective = $True
-		}
-	}
+		[TinyUIFixPSForTS3]::WriteLineQuickly([Environment]::NewLine)
 
-	if (-not $HaveTinyUIFixDirective)
-	{
-		[TinyUIFixPSForTS3]::WriteLineQuickly("`"$ResourceCFGPath`" does not have a PackedFileDirective for the Tiny UI Fix's generated package, so a PackedFileDirective for it is being added to the file.")
-
-		$Adjustment = [Int32]::MaxValue - $GreatestPriority
-		if ($Adjustment -gt 100) {$Adjustment = 100}
-		$NewPriority = $GreatestPriority + $Adjustment
-
-		$SeedResourceCFG = "Priority $NewPriority$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
-		& $PrependToFile $ResourceCFGPath "$SeedResourceCFG$([Environment]::NewLine)$([Environment]::NewLine)"
-	}
-}
-
-if (-not (Test-Path -LiteralPath $TinyUIFixModFolderPath))
-{
-	New-Item -ItemType Directory -Force -Path $TinyUIFixModFolderPath -ErrorAction Stop > $Null
-}
-
-$GeneratedPackageFilePath = Join-Path $TinyUIFixModFolderPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
-
-
-$ResourcesToPatch = Find-ResourcesToPatch $ResolvedResourcesPriorities
-$ResourcesToPatchByPackage = Group-ResourcesToPatchByPackage $ResourcesToPatch
-
-Write-PackageWithPatchedResources `
-	-UnpatchedResources $ResourcesToPatch `
-	-UnpatchedResourcesByPackage $ResourcesToPatchByPackage `
-	-State $PatchingState `
-	-FilePath $GeneratedPackageFilePath `
-	-OutputUnpackedAssemblyDirectoryPath $OutputUnpackedAssemblyDirectoryPath `
-	-Uncompressed:$GenerateUncompressedPackage
-
-
-$UltimateResult.GeneratedPackage = Get-Item -LiteralPath $GeneratedPackageFilePath -ErrorAction Continue
-
-if ($Null -ne $UltimateResult.GeneratedPackage)
-{
-	if (-not $NonInteractive -or $ChangeResourceCFGToLoadTinyUIFixLast -or $AddTinyUIFixDirectivesToCCMagicSettingsFile)
-	{
-		$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation -IncludeTinyUIFixPackage -SuppressLogging
-		$PrioritiesInReverse = $FinalResolvedResourcesPriorities.PrioritisedFiles.Keys | Sort-Object -Descending
-		$TinyUIFixPackagePath = $UltimateResult.GeneratedPackage.FullName
-		$TinyUIFixPackagePriority = $Null
-		$PriorityToBeat = $Null
-		$ScaledPackagesThatAreOverwritingTinyUIFix = [Collections.Generic.List[String]]::new(0)
-
-		:ForEachPriority foreach ($Priority in $PrioritiesInReverse)
-		{
-			$Files = $FinalResolvedResourcesPriorities.PrioritisedFiles[$Priority]
-
-			for ($Index = $Files.Count; ($Index--) -gt 0;)
-			{
-				$File = $Files[$Index].FullName
-
-				if ($File -eq $TinyUIFixPackagePath)
+		$ConfiguratorInvocation = Invoke-Configurator `
+			-Port $(if ($Null -ne $Script:PSBoundParameters.ConfiguratorPort) {$ConfiguratorPort}) `
+			-PageContents @{Index = $ReadConfiguratorIndexPageTask.GetAwaiter().GetResult()} `
+			-State @{
+				UIScale = $PatchingState.Configuration.Nucleus.UIScale
+				TextScale = $PatchingState.Configuration.Nucleus.TextScale
+				LoadOrder = $LoadOrder
+				AvailablePatchsets = $AvailablePatchsetsForConfigurator
+			} `
+			-Actions @{
+				GeneratePackage = `
 				{
-					$TinyUIFixPackagePriority = $Priority
-					break ForEachPriority
+					@{StopListening = $True; Result = 'abc'}
 				}
+			}
 
-				if ($ResourcesToPatchByPackage.ContainsKey($File))
+		if (-not $ConfiguratorInvocation.Cancelled)
+		{
+			$ConfiguratorLoadOrder = $ConfiguratorInvocation.RequestBody.patchsetLoadOrder -split '\s+'
+			[TinyUIFixPSForTS3]::RecursivelyMergeIntoDictionary($PatchsetConfiguration, $ConfiguratorInvocation.RequestBody.patchsetConfiguration) > $Null
+
+			$LoadOrder = Resolve-PatchsetLoadOrder $ConfiguratorLoadOrder $AvailablePatchsets.PatchsetsByID
+			$PatchingState = New-PatchingState
+			$LoadedPatchsets = Load-Patchsets $AvailablePatchsets -State $PatchingState -LoadOrder $LoadOrder -ConfigurationObject $PatchsetConfiguration
+		}
+	}
+
+
+	New-Item $LastPatchsetLoadOrderFilePath -Force -Value "$($LoadOrder.ByIndex -join ([Environment]::NewLine))$([Environment]::NewLine)" > $Null
+	New-Item $LastPatchsetConfigurationFilePath -Force -Value "$(ConvertTo-Json $PatchsetConfiguration -Depth ([TinyUIFixPSForTS3]::MaximumPatchsetConfigurationFileDepth))$([Environment]::NewLine)" > $Null
+
+
+	if ($SkipGenerationOfPackage)
+	{
+		return [PSCustomObject] $UltimateResult
+	}
+
+
+	$PrependToFile = `
+	{
+		Param ($FilePath, $Text)
+
+		$UTF8 = [Text.UTF8Encoding]::new($False, $False)
+
+		try
+		{
+			$ExistingData = [IO.File]::ReadAllBytes($FilePath)
+		}
+		catch [IO.FileNotFoundException]
+		{
+			$ExistingData = [Byte[]] @()
+		}
+
+		$ConcatenatedData = $UTF8.GetBytes($Text) + $ExistingData
+		[IO.File]::WriteAllBytes($FilePath, $ConcatenatedData)
+	}
+
+
+	if (-not (Test-Path -LiteralPath $ResourceCFGPath))
+	{
+		New-Item -ItemType Directory -Force -Path $ModsPath -ErrorAction Stop > $Null
+
+		[TinyUIFixPSForTS3]::WriteLineQuickly("A Resource.cfg file for mods could not be found, so one is being created one at: `"$ResourceCFGPath`".")
+
+		$SeedResourceCFG = "Priority 10000$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
+		& $PrependToFile $ResourceCFGPath "$SeedResourceCFG$([Environment]::NewLine)"
+	}
+	else
+	{
+		$ResourceCFGLines = [String[]] (Get-Content -LiteralPath $ResourceCFGPath -ErrorAction Stop)
+		$Extracted = [TinyUIFixPSForTS3]::ExtractPackedFileDirectivesFromResourceCFG([TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG($ResourceCFGLines), (Get-Item -LiteralPath $ModsPath -ErrorAction Stop), (Get-Item -LiteralPath $ResourceCFGPath -ErrorAction Stop), {Param ($FilePath) [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFGAtPath($FilePath)}, $Script:IsWindows)
+		$PackedFileDirectives = $Extracted.Directives
+
+		$GreatestPriority = 0
+		$HaveTinyUIFixDirective = $False
+
+		foreach ($PackedFileDirective in $PackedFileDirectives)
+		{
+			if ($PackedFileDirective.Item2 -gt $GreatestPriority)
+			{
+				$GreatestPriority = $PackedFileDirective.Item2
+			}
+
+			if (-not $HaveTinyUIFixDirective -and $PackedFileDirective.Item3 -eq 0 -and $PackedFileDirective.Item1 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
+			{
+				$HaveTinyUIFixDirective = $True
+			}
+		}
+
+		if (-not $HaveTinyUIFixDirective)
+		{
+			[TinyUIFixPSForTS3]::WriteLineQuickly("`"$ResourceCFGPath`" does not have a PackedFileDirective for the Tiny UI Fix's generated package, so a PackedFileDirective for it is being added to the file.")
+
+			$Adjustment = [Int32]::MaxValue - $GreatestPriority
+			if ($Adjustment -gt 100) {$Adjustment = 100}
+			$NewPriority = $GreatestPriority + $Adjustment
+
+			$SeedResourceCFG = "Priority $NewPriority$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
+			& $PrependToFile $ResourceCFGPath "$SeedResourceCFG$([Environment]::NewLine)$([Environment]::NewLine)"
+		}
+	}
+
+	if (-not (Test-Path -LiteralPath $TinyUIFixModFolderPath))
+	{
+		New-Item -ItemType Directory -Force -Path $TinyUIFixModFolderPath -ErrorAction Stop > $Null
+	}
+
+	$GeneratedPackageFilePath = Join-Path $TinyUIFixModFolderPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
+
+
+	$ResourcesToPatch = Find-ResourcesToPatch $ResolvedResourcesPriorities
+	$ResourcesToPatchByPackage = Group-ResourcesToPatchByPackage $ResourcesToPatch
+
+	Write-PackageWithPatchedResources `
+		-UnpatchedResources $ResourcesToPatch `
+		-UnpatchedResourcesByPackage $ResourcesToPatchByPackage `
+		-State $PatchingState `
+		-FilePath $GeneratedPackageFilePath `
+		-OutputUnpackedAssemblyDirectoryPath $OutputUnpackedAssemblyDirectoryPath `
+		-Uncompressed:$GenerateUncompressedPackage
+
+
+	$UltimateResult.GeneratedPackage = Get-Item -LiteralPath $GeneratedPackageFilePath -ErrorAction Continue
+
+	if ($Null -ne $UltimateResult.GeneratedPackage)
+	{
+		if (-not $NonInteractive -or $ChangeResourceCFGToLoadTinyUIFixLast -or $AddTinyUIFixDirectivesToCCMagicSettingsFile)
+		{
+			$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation -IncludeTinyUIFixPackage -SuppressLogging
+			$PrioritiesInReverse = $FinalResolvedResourcesPriorities.PrioritisedFiles.Keys | Sort-Object -Descending
+			$TinyUIFixPackagePath = $UltimateResult.GeneratedPackage.FullName
+			$TinyUIFixPackagePriority = $Null
+			$PriorityToBeat = $Null
+			$ScaledPackagesThatAreOverwritingTinyUIFix = [Collections.Generic.List[String]]::new(0)
+
+			:ForEachPriority foreach ($Priority in $PrioritiesInReverse)
+			{
+				$Files = $FinalResolvedResourcesPriorities.PrioritisedFiles[$Priority]
+
+				for ($Index = $Files.Count; ($Index--) -gt 0;)
 				{
-					$ScaledPackagesThatAreOverwritingTinyUIFix.Add($File)
+					$File = $Files[$Index].FullName
 
-					if ($Null -eq $PriorityToBeat)
+					if ($File -eq $TinyUIFixPackagePath)
 					{
-						$PriorityToBeat = $Priority
+						$TinyUIFixPackagePriority = $Priority
+						break ForEachPriority
+					}
+
+					if ($ResourcesToPatchByPackage.ContainsKey($File))
+					{
+						$ScaledPackagesThatAreOverwritingTinyUIFix.Add($File)
+
+						if ($Null -eq $PriorityToBeat)
+						{
+							$PriorityToBeat = $Priority
+						}
 					}
 				}
 			}
-		}
 
-		if ($Null -eq $PriorityToBeat)
-		{
-			$PriorityToBeat = $TinyUIFixPackagePriority
-		}
-
-		$PriorityToBeat = [TinyUIFixPSForTS3]::UnpackPriority($PriorityToBeat).Item1
-
-		$AdjustFile = `
-		{
-			Param ([String] $CannotAdjustMessage, [ScriptBlock] $MakePrompt, [ScriptBlock] $Adjust)
-
-			if ($PriorityToBeat -eq [Int32]::MaxValue)
+			if ($Null -eq $PriorityToBeat)
 			{
-				Write-Warning $CannotAdjustMessage -WarningAction Continue
+				$PriorityToBeat = $TinyUIFixPackagePriority
 			}
-			elseif (
-				$(
-					$Adjustment = [Int32]::MaxValue - $PriorityToBeat
-					if ($Adjustment -gt 100) {$Adjustment = 100}
 
-					$ResourceCFGAddition = "Priority $($PriorityToBeat + $Adjustment)$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
+			$PriorityToBeat = [TinyUIFixPSForTS3]::UnpackPriority($PriorityToBeat).Item1
 
-					$NonInteractive -or (Read-YesOrNo (& $MakePrompt $ResourceCFGAddition))
+			$AdjustFile = `
+			{
+				Param ([String] $CannotAdjustMessage, [ScriptBlock] $MakePrompt, [ScriptBlock] $Adjust)
+
+				if ($PriorityToBeat -eq [Int32]::MaxValue)
+				{
+					Write-Warning $CannotAdjustMessage -WarningAction Continue
+				}
+				elseif (
+					$(
+						$Adjustment = [Int32]::MaxValue - $PriorityToBeat
+						if ($Adjustment -gt 100) {$Adjustment = 100}
+
+						$ResourceCFGAddition = "Priority $($PriorityToBeat + $Adjustment)$([Environment]::NewLine)PackedFile $([TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)$([Environment]::NewLine)Priority 0"
+
+						$NonInteractive -or (Read-YesOrNo (& $MakePrompt $ResourceCFGAddition))
+					)
 				)
-			)
-			{
-				& $Adjust "$ResourceCFGAddition$([Environment]::NewLine)$([Environment]::NewLine)"
-			}
-		}
-
-		if ($ScaledPackagesThatAreOverwritingTinyUIFix.Count -gt 0)
-		{
-			[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
-			Write-Warning "There are packages that were scaled by the Tiny UI Fix that will be loaded after the Tiny UI Fix, which will cause the scaling to not take effect.$([Environment]::NewLine)Those packages are: $(($ScaledPackagesThatAreOverwritingTinyUIFix | % {'"{0}"' -f $_}) -join '; ')." -WarningAction Continue
-
-			& $AdjustFile `
-				"This script would offer to adjust the Resource.cfg file for you, but a priority cannot be greater than $([Int32]::MaxValue)." `
-				{Param ($Addition) "$([Environment]::NewLine)Would you like to adjust the `"$ResourceCFGPath`" file to load $([TinyUIFixPSForTS3]::GeneratedPackageName) after the scaled packages?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of Resource.cfg:$([Environment]::NewLine)$Addition"} `
-				{Param ($Addition) & $PrependToFile $ResourceCFGPath $Addition}
-		}
-
-		if ($Null -ne $CCMagicSettingsFile)
-		{
-			$CCMagicDirectiveLines = [String[]] (Get-DirectivesFromCCMagicSettingsFile $CCMagicSettingsFile)
-			$CCMagicDirectives = if ($Null -ne $CCMagicDirectiveLines) {[TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG($CCMagicDirectiveLines)} else {[String[]] @()}
-
-			$LastPriority = 0
-			$HaveTinyUIFixDirectiveInCCMagicSettings = $False
-			$PriorityForTinyUIFixDirectiveInCCMagicSettings = 0
-
-			foreach ($CCMagicDirective in $CCMagicDirectives)
-			{
-				if ($CCMagicDirective.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::Priority)
 				{
-					try
-					{
-						$PriorityValue = [Int32] $CCMagicDirective.Item2
-						$LastPriority = $PriorityValue
-					}
-					catch
-					{
-						Write-Warning "The CC Magic settings file at `"$CCMagicSettingsFile`" had an invalid value of `"$($CCMagicDirective.Item2)`" for a `"Priority`" directive in the `"Additional Resource.cfg Entries`" setting." -WarningAction Continue
-					}
-				}
-				elseif ($CCMagicDirective.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::PackedFile)
-				{
-					if (-not $HaveTinyUIFixDirectiveInCCMagicSettings -and $CCMagicDirective.Item2 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
-					{
-						$HaveTinyUIFixDirectiveInCCMagicSettings = $True
-						$PriorityForTinyUIFixDirectiveInCCMagicSettings = $LastPriority
-					}
+					& $Adjust "$ResourceCFGAddition$([Environment]::NewLine)$([Environment]::NewLine)"
 				}
 			}
 
-			if (-not $HaveTinyUIFixDirectiveInCCMagicSettings -or $PriorityForTinyUIFixDirectiveInCCMagicSettings -le $PriorityToBeat)
+			if ($ScaledPackagesThatAreOverwritingTinyUIFix.Count -gt 0)
 			{
+				[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
+				Write-Warning "There are packages that were scaled by the Tiny UI Fix that will be loaded after the Tiny UI Fix, which will cause the scaling to not take effect.$([Environment]::NewLine)Those packages are: $(($ScaledPackagesThatAreOverwritingTinyUIFix | % {'"{0}"' -f $_}) -join '; ')." -WarningAction Continue
+
 				& $AdjustFile `
-					"This script would offer to adjust the CC Magic settings file for you, but a priority cannot be greater than $([Int32]::MaxValue)." `
-					{Param ($Addition) "$([Environment]::NewLine)Would you like to adjust the CC Magic settings file, at `"$CCMagicSettingsFile`" to ensure that $([TinyUIFixPSForTS3]::GeneratedPackageName) is loaded after a rebuild?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of the `"Additional Resource.cfg Entries`" setting:$([Environment]::NewLine)$Addition$([Environment]::NewLine)$([Environment]::NewLine)If CC Magic is open right now: it must be closed before saying yes to this, or else CC Magic will undo the changes when it is closed."} `
-					{Param ($Addition) Add-TinyUIFixDirectivesToCCMagicSettingsFile $Addition $CCMagicSettingsFile}
+					"This script would offer to adjust the Resource.cfg file for you, but a priority cannot be greater than $([Int32]::MaxValue)." `
+					{Param ($Addition) "$([Environment]::NewLine)Would you like to adjust the `"$ResourceCFGPath`" file to load $([TinyUIFixPSForTS3]::GeneratedPackageName) after the scaled packages?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of Resource.cfg:$([Environment]::NewLine)$Addition"} `
+					{Param ($Addition) & $PrependToFile $ResourceCFGPath $Addition}
+			}
+
+			if ($Null -ne $CCMagicSettingsFile)
+			{
+				$CCMagicDirectiveLines = [String[]] (Get-DirectivesFromCCMagicSettingsFile $CCMagicSettingsFile)
+				$CCMagicDirectives = if ($Null -ne $CCMagicDirectiveLines) {[TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG($CCMagicDirectiveLines)} else {[String[]] @()}
+
+				$LastPriority = 0
+				$HaveTinyUIFixDirectiveInCCMagicSettings = $False
+				$PriorityForTinyUIFixDirectiveInCCMagicSettings = 0
+
+				foreach ($CCMagicDirective in $CCMagicDirectives)
+				{
+					if ($CCMagicDirective.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::Priority)
+					{
+						try
+						{
+							$PriorityValue = [Int32] $CCMagicDirective.Item2
+							$LastPriority = $PriorityValue
+						}
+						catch
+						{
+							Write-Warning "The CC Magic settings file at `"$CCMagicSettingsFile`" had an invalid value of `"$($CCMagicDirective.Item2)`" for a `"Priority`" directive in the `"Additional Resource.cfg Entries`" setting." -WarningAction Continue
+						}
+					}
+					elseif ($CCMagicDirective.Item1 -eq [TinyUIFixForTS3ResourceCFGDirective]::PackedFile)
+					{
+						if (-not $HaveTinyUIFixDirectiveInCCMagicSettings -and $CCMagicDirective.Item2 -eq [TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective)
+						{
+							$HaveTinyUIFixDirectiveInCCMagicSettings = $True
+							$PriorityForTinyUIFixDirectiveInCCMagicSettings = $LastPriority
+						}
+					}
+				}
+
+				if (-not $HaveTinyUIFixDirectiveInCCMagicSettings -or $PriorityForTinyUIFixDirectiveInCCMagicSettings -le $PriorityToBeat)
+				{
+					& $AdjustFile `
+						"This script would offer to adjust the CC Magic settings file for you, but a priority cannot be greater than $([Int32]::MaxValue)." `
+						{Param ($Addition) "$([Environment]::NewLine)Would you like to adjust the CC Magic settings file, at `"$CCMagicSettingsFile`" to ensure that $([TinyUIFixPSForTS3]::GeneratedPackageName) is loaded after a rebuild?$([Environment]::NewLine)$([Environment]::NewLine)These lines would be added to the start of the `"Additional Resource.cfg Entries`" setting:$([Environment]::NewLine)$Addition$([Environment]::NewLine)$([Environment]::NewLine)If CC Magic is open right now: it must be closed before saying yes to this, or else CC Magic will undo the changes when it is closed."} `
+						{Param ($Addition) Add-TinyUIFixDirectivesToCCMagicSettingsFile $Addition $CCMagicSettingsFile}
+				}
 			}
 		}
 	}
+
+
+	[TinyUIFixPSForTS3]::WriteLineQuickly("$([Environment]::NewLine)A UI-scaled package file was generated, and saved to `"$GeneratedPackageFilePath`".$([Environment]::NewLine)$([Environment]::NewLine)Have fun! :)")
+
+
+	[PSCustomObject] $UltimateResult
 }
-
-
-[TinyUIFixPSForTS3]::WriteLineQuickly("$([Environment]::NewLine)A UI-scaled package file was generated, and saved to `"$GeneratedPackageFilePath`".$([Environment]::NewLine)$([Environment]::NewLine)Have fun! :)")
-
-
-[PSCustomObject] $UltimateResult
+finally
+{}
 
