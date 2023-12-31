@@ -64,8 +64,9 @@ $MinimumPatchsetLoadOrderPosition = 2
 			.label-grid
 			{
 				display: grid;
-				grid-template-columns: max-content 1fr max-content;
+				grid-template-columns: max-content 1fr;
 				column-gap: 0.4rem;
+				row-gap: 0.6rem;
 			}
 
 			.label-grid > label
@@ -434,6 +435,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				const cancelConfiguratorButton = configurator.querySelector('[data-cancel-configurator-button]');
 				const importExportZone = configurator.querySelector('[data-import-export-zone]');
 				const uiScaleInput = configurator.querySelector('[data-ui-scale]');
+				const textScaleInput = configurator.querySelector('[data-text-scale]');
 
 				const handleChangeOfPatchsetLoadOrderPosition = (event, moveFocusWithPatchset) =>
 				{
@@ -584,7 +586,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 					);
 				};
 
-				generatePackageButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/generate-package', {patchsetConfiguration: {Nucleus: {UIScale: uiScaleInput.value}}, patchsetLoadOrder: currentLoadOrder().join(' ')}, 'A package is now being generated. Please return to the PowerShell script.'));
+				generatePackageButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/generate-package', {patchsetConfiguration: {Nucleus: {UIScale: uiScaleInput.value, TextScale: textScaleInput.value}}, patchsetLoadOrder: currentLoadOrder().join(' ')}, 'A package is now being generated. Please return to the PowerShell script.'));
 				exportLoadOrderButton.addEventListener('click', event => importExportZone.value = currentLoadOrder().join("\r\n"));
 				importLoadOrderButton.addEventListener('click', event => importLoadOrderText(importExportZone.value));
 				checkForUpdatesButton.addEventListener('click', event => sendRequestAndSetFooterStatusMessage('/check-for-updates'));
@@ -619,12 +621,22 @@ $MinimumPatchsetLoadOrderPosition = 2
 						<header><a href="#configuration" tabindex="-1"><h2>Configuration</h2></a></header>
 
 						<div class="panel scrollable">
+							<p>You can mouse over a setting to find out more information about that setting.</p>
+
 							<div class="textual-panel">
 								<div class="label-grid">
 									<label title="This controls the scale of the game's UI, as a multiplier. A UI scale of 1 is the game's default UI scale, whereas a UI scale of 2 would result in the game's UI being twice as big as usual.&#13;&#10;If no value is provided for the UI scale, it defaults to 1.">
 										<span>UI Scale</span>
 										<span class="with-units">
-											<input id="ui-scale" type="number" min="0.05" step="0.05" name="ui-scale" value="$($State.UIScale)" data-ui-scale>
+											<input id="ui-scale" type="number" min="0.05" step="0.05" name="ui-scale" value="$($State.UIScale)" placeholder="1.00" data-ui-scale>
+											<span><abbr title="times">x</abbr></span>
+										</span>
+									</label>
+
+									<label title="This controls the scale of the game's text, as a multiplier. A text scale of 1 is the game's default text scale, whereas a text scale of 2 would result in the game's text being twice as big as usual.&#13;&#10;If no value is provided for the text scale, it defaults to being the same as the UI scale.&#13;&#10;&#13;&#10;If the text scale is set to be much larger than the UI scale, text may overlap with other UI elements—this is expected and will not be fixed.`">
+										<span>Text Scale</span>
+										<span class="with-units">
+											<input id="text-scale" type="number" min="0.05" step="0.05" name="text-scale" value="$($State.TextScale)" placeholder="Same as the UI Scale" data-text-scale>
 											<span><abbr title="times">x</abbr></span>
 										</span>
 									</label>

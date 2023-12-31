@@ -4734,6 +4734,7 @@ if ($UsingConfigurator)
 		-PageContents @{Index = $ReadConfiguratorIndexPageTask.GetAwaiter().GetResult()} `
 		-State @{
 			UIScale = $PatchingState.Configuration.Nucleus.UIScale
+			TextScale = $PatchingState.Configuration.Nucleus.TextScale
 			LoadOrder = $LoadOrder
 			AvailablePatchsets = $AvailablePatchsetsForConfigurator
 		} `
