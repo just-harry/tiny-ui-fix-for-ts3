@@ -2,6 +2,14 @@
 
 ## Changelog
 
+### Version 1.2.0
+
+#### User-facing
+
+- In some circumstances, S3SA resources with the lowest priority would be included in the generated `tiny-ui-fix.package` file, instead of the resources with the highest priority.
+This has been fixed to correctly use the resources with the highest priority. \
+As a consequence of this, the Tiny UI Fix should no longer be incompatible with simler90's Gameplay Core Mod.
+
 ### Version 1.1.1
 
 #### User-facing
