@@ -2058,12 +2058,18 @@ function Apply-PatchesToResources (
 	{
 		Param ($Package, $IndexEntry)
 
+		$ResourceKey = [s3pi.Interfaces.TGIBlock]::new(1, $Null, $IndexEntry)
+
+		if ($AssemblyStreams.ContainsKey($ResourceKey))
+		{
+			return
+		}
+
 		$Stream = [IO.MemoryStream]::new()
 
 		[s3pi.WrapperDealer.WrapperDealer]::GetResource(1, $Package, $IndexEntry).Assembly.BaseStream.CopyTo($Stream)
 		$Stream.Position = 0
 
-		$ResourceKey = [s3pi.Interfaces.TGIBlock]::new(1, $Null, $IndexEntry)
 		$AssemblyStreams[$ResourceKey] = $Stream
 	}
 
