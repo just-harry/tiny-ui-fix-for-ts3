@@ -118,6 +118,62 @@ class TinyUIFixPSForTS3UnableToUseConfiguratorPortException : TinyUIFixPSForTS3C
 class TinyUIFixPSForTS3FailedToDownloadFileException : TinyUIFixPSForTS3Exception {TinyUIFixPSForTS3FailedToDownloadFileException ([String] $Message, [PSCustomObject] $Data) : base($Message, $Data) {}}
 
 
+$IndentationRegEx = [RegEx]::new('^\s+', [Text.RegularExpressions.RegexOptions]::MultiLine -bor [Text.RegularExpressions.RegexOptions]::Compiled)
+$StartOfLineRegEx = [RegEx]::new('^', [Text.RegularExpressions.RegexOptions]::MultiLine -bor [Text.RegularExpressions.RegexOptions]::Compiled)
+$TrailingNewLinesRegEx = [RegEx]::new('[\r\n]+$', [Text.RegularExpressions.RegexOptions]::Compiled)
+
+
+$FormatInnerException = `
+{
+	Param ($E)
+
+	if ($Null -ne $E)
+	{
+		$L = [Environment]::Newline
+		$Indent = [String] [Char] 0x00A0 * 4
+		"${L}Which was maybe caused by:${L}$($E.Message)${L}$(if ($Null -ne $E.HResult) {"HRESULT: $($E.HResult.ToString('X08'))${L}"})The type of error was: $($E.GetType().FullName)${L}The error occurred:${L}$($StartOfLineRegEx.Replace($IndentationRegEx.Replace($E.StackTrace, [String]::Empty), $Indent))$(& $FormatInnerException $E.InnerException)"
+	}
+	else
+	{
+		[String]::Empty
+	}
+}
+
+
+$FormatException = `
+{
+	Param ($E)
+	$L = [Environment]::Newline
+	$Indent = [String] [Char] 0x00A0 * 4
+	"$($E.Message)${L}$(if ($Null -ne $E.HResult) {"HRESULT: $($E.HResult.ToString('X08'))${L}"})The type of error was: $($E.GetType().FullName)${L}The error occurred:${L}$($StartOfLineRegEx.Replace($IndentationRegEx.Replace($E.StackTrace, [String]::Empty), $Indent))$(& $FormatInnerException $E.InnerException)"
+}
+
+
+$FormatErrorRecord = `
+{
+	Param ($E)
+
+	if ($Null -eq $E.Exception)
+	{
+		return $_ | Out-String
+	}
+
+	$L = [Environment]::Newline
+	$Indent = [String] [Char] 0x00A0 * 4
+	"$($E.Exception.Message)${L}$(if ($Null -ne $E.Exception.HResult) {"HRESULT: $($E.Exception.HResult.ToString('X08'))${L}"})The type of error was: $($E.Exception.GetType().FullName)${L}The line that caused the error was: $($TrailingNewLinesRegEx.Replace($IndentationRegEx.Replace($E.InvocationInfo.Line, [String]::Empty), [String]::Empty))${L}The error occurred:${L}$($StartOfLineRegEx.Replace($IndentationRegEx.Replace($E.Exception.StackTrace, [String]::Empty), $Indent))${L}$($StartOfLineRegEx.Replace($E.ScriptStackTrace, $Indent))$(& $FormatInnerException $E.Exception.InnerException)"
+}
+
+
+$FormatError = `
+{
+	Param ($E)
+
+	$L = [Environment]::Newline
+	$Indent = [String] [Char] 0x00A0 * 4
+	"An unexpected error occurred. Should you like assistance with this error, please assist those assisting you by copying the indented text into your request for assistance. The error was:${L}$($StartOfLineRegEx.Replace("= Tiny UI Fix version $([TinyUIFixPSForTS3]::Version), running on PowerShell v$($PSVersionTable.PSVersion), on $([Environment]::OSVersion.VersionString) =${L}$(& $(if ($E -is [Management.Automation.ErrorRecord]) {$FormatErrorRecord} else {$FormatException}) $_)", $Indent))${L}"
+}
+
+
 function Get-ExpectedSims3Paths
 {
 	$Result = if ($Script:IsWindows)
@@ -1258,7 +1314,7 @@ function Find-ResourcesAcrossPackages (
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceType').GetMethod),
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceGroup').GetMethod),
 		[Func[s3pi.Interfaces.IResourceKey, s3pi.Interfaces.TGIBlock]] {Param ($ResourceKey) [s3pi.Interfaces.TGIBlock]::new(1, $Null, $ResourceKey)},
-		[Action[Exception]] {Param ($Exception) Write-Warning $Exception}
+		[Action[Exception]] {Param ($Exception) Write-Warning (& $FormatError $Exception)}
 	)
 }
 
@@ -3687,12 +3743,12 @@ function Load-Patchsets ($ReadPatchsets = (Read-AvailablePatchsets), $LoadOrder,
 {
 	foreach ($InvalidPowerShellScript in $ReadPatchsets.InvalidPowerShellScripts)
 	{
-		Write-Warning "The patchset at `"$($InvalidPowerShellScript.Item1)`" could not be loaded as it is not a valid PowerShell script. The error was:$([Environment]::NewLine)$($InvalidPowerShellScript.Item2)"
+		Write-Warning "The patchset at `"$($InvalidPowerShellScript.Item1)`" could not be loaded as it is not a valid PowerShell script. The error was:$([Environment]::NewLine)$(& $FormatError $InvalidPowerShellScript.Item2)"
 	}
 
 	foreach ($InvalidPatchset in $ReadPatchsets.InvalidPatchsets)
 	{
-		Write-Warning "The patchset at `"$($InvalidPatchset.Item1)`" was not loaded because: $($InvalidPatchset.Item2)"
+		Write-Warning "The patchset at `"$($InvalidPatchset.Item1)`" was not loaded because: $(& $FormatError $InvalidPatchset.Item2)"
 	}
 
 	foreach ($Entry in $ReadPatchsets.PatchsetsWithConflictingIDs.GetEnumerator())
@@ -3704,7 +3760,7 @@ function Load-Patchsets ($ReadPatchsets = (Read-AvailablePatchsets), $LoadOrder,
 
 	foreach ($FailedImport in $ImportedPatchsets.FailedToImport)
 	{
-		Write-Error -ErrorAction Continue "An error occurred when loading the patchset at `"$($FailedImport.Item1)`". The error was:$([Environment]::NewLine)$($FailedImport.Item2)"
+		Write-Error -ErrorAction Continue "An error occurred when loading the patchset at `"$($FailedImport.Item1)`". The error was:$([Environment]::NewLine)$(& $FormatError $FailedImport.Item2)"
 	}
 
 	$State.PatchsetLoadOrder = $LoadOrder
@@ -4092,7 +4148,7 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 							catch
 							{
 								Remove-ConfiguratorMessage
-								Write-Error $_ -ErrorAction Continue
+								Write-Error (& $FormatError $_) -ErrorAction Continue
 								$ConfiguratorMessageLeft, $ConfiguratorMessageTop = Write-ConfiguratorMessage
 							}
 						}
@@ -4118,7 +4174,7 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 					if ($ContextTask.IsFaulted)
 					{
 						Remove-ConfiguratorMessage
-						Write-Error $ContextTask.Exception -ErrorAction Continue
+						Write-Error (& $FormatError $ContextTask.Exception) -ErrorAction Continue
 						$ConfiguratorMessageLeft, $ConfiguratorMessageTop = Write-ConfiguratorMessage
 					}
 					else
@@ -4254,7 +4310,7 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 			catch
 			{
 				Remove-ConfiguratorMessage
-				Write-Error $_.Exception.ToString() -ErrorAction Continue
+				Write-Error (& $FormatError $_.Exception) -ErrorAction Continue
 				$ConfiguratorMessageLeft, $ConfiguratorMessageTop = Write-ConfiguratorMessage
 
 				$Context.Response.StatusCode = 500
@@ -4269,7 +4325,7 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 	{
 		$Listener.Abort()
 
-		Write-Error $_ -ErrorAction Continue
+		Write-Error (& $FormatError $_) -ErrorAction Continue
 	}
 	finally
 	{
@@ -4302,7 +4358,7 @@ function Get-DirectivesFromCCMagicSettingsFile ([IO.FileInfo] $CCMagicSettingsFi
 	}
 	catch
 	{
-		Write-Error $_ -ErrorAction Continue
+		Write-Error (& $FormatError $_) -ErrorAction Continue
 
 		return
 	}
@@ -4336,7 +4392,7 @@ function Add-TinyUIFixDirectivesToCCMagicSettingsFile ([String] $Directives, [IO
 	}
 	catch
 	{
-		Write-Error $_ -ErrorAction Continue
+		Write-Error (& $FormatError $_) -ErrorAction Continue
 
 		return
 	}
@@ -4381,7 +4437,11 @@ try
 {
 	trap
 	{
-		[TinyUIFixPSForTS3]::WriteQuicklyWithColour(($_ | Out-String), $Global:Host.PrivateData.ErrorForegroundColor, $Global:Host.PrivateData.ErrorBackgroundColor)
+		$L = [Environment]::Newline
+		$Indent = [String] [Char] 0x00A0 * 4
+		$ErrorMessage = & $FormatError $_
+
+		[TinyUIFixPSForTS3]::WriteQuicklyWithColour($ErrorMessage, $Global:Host.PrivateData.ErrorForegroundColor, $Global:Host.PrivateData.ErrorBackgroundColor)
 
 		continue
 	}
@@ -4718,7 +4778,7 @@ try
 
 		foreach ($FailedImport in $ImportedInactivePatchsets.FailedToImport)
 		{
-			Write-Error -ErrorAction Continue "An error occurred when loading the patchset at `"$($FailedImport.Item1)`". The error was:$([Environment]::NewLine)$($FailedImport.Item2)"
+			Write-Error -ErrorAction Continue "An error occurred when loading the patchset at `"$($FailedImport.Item1)`". The error was:$([Environment]::NewLine)$(& $FormatError $FailedImport.Item2)"
 		}
 
 		foreach ($Patchset in $ImportedInactivePatchsets.Patchsets)
