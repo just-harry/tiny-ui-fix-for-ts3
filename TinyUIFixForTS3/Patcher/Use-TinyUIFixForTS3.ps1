@@ -2196,49 +2196,58 @@ function Apply-PatchesToResources (
 
 		if ($Category -ceq [TinyUIFixPSForTS3]::LAYOTypeID)
 		{
-			& $EditXMLResource $IndexEntry $FromPackage `
+			try
 			{
-				Param ($XML)
-
-				$StyleGuideLayoutResourceKey = $TinyUIFixPSForTS3ResourceKeys.StyleGuideLayout
-
-				if (
-					     $StyleGuideLayoutResourceKey.Instance -eq $IndexEntry.Instance `
-					-and $StyleGuideLayoutResourceKey.ResourceType -eq $IndexEntry.ResourceType `
-					-and $StyleGuideLayoutResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
-				)
+				& $EditXMLResource $IndexEntry $FromPackage `
 				{
-					return $False
-				}
+					Param ($XML)
 
-				try
-				{
-					$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Patchsets.Nucleus.Instance.EffectiveUIScale, $State.RegisteredExtraLayoutScalers)
-				}
-				catch
-				{
-					Write-Warning "An error occurred when scaling the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$($_.Exception)" -WarningAction Continue
+					$StyleGuideLayoutResourceKey = $TinyUIFixPSForTS3ResourceKeys.StyleGuideLayout
 
-					return $False
-				}
-
-				foreach ($LayoutWinProcs in $Result.scrollbarLayoutWinProcsByControlID, $Result.sliderLayoutWinProcsByControlID)
-				{
-					foreach ($WinProcLayoutsByControlID in $LayoutWinProcs.GetEnumerator())
+					if (
+						     $StyleGuideLayoutResourceKey.Instance -eq $IndexEntry.Instance `
+						-and $StyleGuideLayoutResourceKey.ResourceType -eq $IndexEntry.ResourceType `
+						-and $StyleGuideLayoutResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
+					)
 					{
-						$WinProcLayouts = $Null
-
-						if (-not $WinProcLayoutWinProcsByControlID.TryGetValue($WinProcLayoutsByControlID.Key, [Ref] $WinProcLayouts))
-						{
-							$WinProcLayouts = [Collections.Generic.List[ValueTuple[TinyUIFixForTS3Patcher.LayoutScaler+LayoutWinProc, TinyUIFixForTS3Patcher.LayoutScaler+ControlIDChain]]]::new()
-							$WinProcLayoutWinProcsByControlID[$WinProcLayoutsByControlID.Key] = $WinProcLayouts
-						}
-
-						$WinProcLayouts.AddRange($WinProcLayoutsByControlID.Value)
+						return $False
 					}
-				}
 
-				$True
+					try
+					{
+						$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Patchsets.Nucleus.Instance.EffectiveUIScale, $State.RegisteredExtraLayoutScalers)
+					}
+					catch
+					{
+						Write-Warning "An error occurred when scaling the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_.Exception)" -WarningAction Continue
+
+						return $False
+					}
+
+					foreach ($LayoutWinProcs in $Result.scrollbarLayoutWinProcsByControlID, $Result.sliderLayoutWinProcsByControlID)
+					{
+						foreach ($WinProcLayoutsByControlID in $LayoutWinProcs.GetEnumerator())
+						{
+							$WinProcLayouts = $Null
+
+							if (-not $WinProcLayoutWinProcsByControlID.TryGetValue($WinProcLayoutsByControlID.Key, [Ref] $WinProcLayouts))
+							{
+								$WinProcLayouts = [Collections.Generic.List[ValueTuple[TinyUIFixForTS3Patcher.LayoutScaler+LayoutWinProc, TinyUIFixForTS3Patcher.LayoutScaler+ControlIDChain]]]::new()
+								$WinProcLayoutWinProcsByControlID[$WinProcLayoutsByControlID.Key] = $WinProcLayouts
+							}
+
+							$WinProcLayouts.AddRange($WinProcLayoutsByControlID.Value)
+						}
+					}
+
+					$True
+				}
+			}
+			catch
+			{
+				Write-Warning "An error occurred while manipulating the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_.Exception)" -WarningAction Continue
+
+				return $False
 			}
 
 			1
