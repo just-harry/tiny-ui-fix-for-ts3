@@ -2219,7 +2219,7 @@ function Apply-PatchesToResources (
 					}
 					catch
 					{
-						Write-Warning "An error occurred when scaling the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_.Exception)" -WarningAction Continue
+						Write-Warning "An error occurred when scaling the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_)" -WarningAction Continue
 
 						return $False
 					}
@@ -2245,7 +2245,7 @@ function Apply-PatchesToResources (
 			}
 			catch
 			{
-				Write-Warning "An error occurred while manipulating the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_.Exception)" -WarningAction Continue
+				Write-Warning "An error occurred while manipulating the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_)" -WarningAction Continue
 
 				$Null
 			}
