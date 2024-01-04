@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### Version 1.2.2
+
+#### User-facing
+
+- An error caused by the invalid XML error handling, introduced by version 1.2.1, was fixed.
+- Errors that occur during layout scaling are now logged with more detail.
+
 ### Version 1.2.1
 
 #### User-facing
