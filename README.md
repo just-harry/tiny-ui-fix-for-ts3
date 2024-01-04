@@ -127,9 +127,6 @@ If you are a mod author and you would like to make your mod compatible with the 
 
 ## Known issues
 
-If an issue is struck-out that denotes that the issue was fixed in the latest version of the patch.
-
-- ~~In some circumstances, S3SA resources with the lowest priority would be included in the generated `tiny-ui-fix.package` file, instead of the resources with the highest priority.~~
 - Some icons and graphics are visually stretched in one dimension.
 - Some icons disappear when they are selected.
 - Scrollbars that would usually scroll smoothly when the arrows are clicked do not scroll smoothly.
