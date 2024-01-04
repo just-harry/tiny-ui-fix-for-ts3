@@ -392,7 +392,7 @@ enum TinyUIFixForTS3ResourceCFGDirective
 
 class TinyUIFixPSForTS3
 {
-	static [Version] $Version = [Version]::new(1, 2, 0)
+	static [Version] $Version = [Version]::new(1, 2, 1)
 	static [URI] $VersionCheckURL = [URI]::new('https://github.com/just-harry/tiny-ui-fix-for-ts3/raw/most-recent-version/VERSION')
 	static [URI] $HomePageURL = [URI]::new('https://github.com/just-harry/tiny-ui-fix-for-ts3')
 
