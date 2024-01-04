@@ -2247,7 +2247,7 @@ function Apply-PatchesToResources (
 			{
 				Write-Warning "An error occurred while manipulating the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_.Exception)" -WarningAction Continue
 
-				return $False
+				$Null
 			}
 
 			1
