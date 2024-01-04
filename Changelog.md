@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### Version 1.2.1
+
+#### User-facing
+
+- Errors are now printed with more detail, to make troubleshooting easier.
+- Errors caused by XML resources consisting of invalid XML are now handled more gracefully—the offending XML resources are skipped.
+
 ### Version 1.2.0
 
 #### User-facing
