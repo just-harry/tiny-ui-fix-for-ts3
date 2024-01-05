@@ -34,6 +34,7 @@ namespace TinyUIFixForTS3Patcher
 	{
 		public const string floatFormatString = "{0:F9}";
 		public const string intHexFormatString = "0x{0:x8}";
+		public const string intDecimalFormatString = "{0:d}";
 
 		[ThreadStatic] static StringBuilder stringBuilder;
 
@@ -58,13 +59,13 @@ namespace TinyUIFixForTS3Patcher
 		{
 			var builder = stringBuilder;
 			builder.Clear();
-			builder.AppendFormat(floatFormatString, area.X);
+			builder.AppendFormat(Parsing.floatFormat, floatFormatString, area.X);
 			builder.Append(',');
-			builder.AppendFormat(floatFormatString, area.Y);
+			builder.AppendFormat(Parsing.floatFormat, floatFormatString, area.Y);
 			builder.Append(',');
-			builder.AppendFormat(floatFormatString, area.W);
+			builder.AppendFormat(Parsing.floatFormat, floatFormatString, area.W);
 			builder.Append(',');
-			builder.AppendFormat(floatFormatString, area.Z);
+			builder.AppendFormat(Parsing.floatFormat, floatFormatString, area.Z);
 
 			return builder.ToString();
 		}
@@ -83,9 +84,9 @@ namespace TinyUIFixForTS3Patcher
 		{
 			var builder = stringBuilder;
 			builder.Clear();
-			builder.AppendFormat(floatFormatString, point.X);
+			builder.AppendFormat(Parsing.floatFormat, floatFormatString, point.X);
 			builder.Append(',');
-			builder.AppendFormat(floatFormatString, point.Y);
+			builder.AppendFormat(Parsing.floatFormat, floatFormatString, point.Y);
 
 			return builder.ToString();
 		}
@@ -99,7 +100,7 @@ namespace TinyUIFixForTS3Patcher
 		{
 			var builder = stringBuilder;
 			builder.Clear();
-			builder.AppendFormat(floatFormatString, value);
+			builder.AppendFormat(Parsing.floatFormat, floatFormatString, value);
 
 			return builder.ToString();
 		}
@@ -293,7 +294,7 @@ namespace TinyUIFixForTS3Patcher
 					stringBuilder.Clear();
 					/* The 0b100 button-flag inhibits vertical scaling, similarly the 0b010 flag inhibits horizontal scaling.
 					   So, we clear those bits if they're set. */
-					stringBuilder.AppendFormat(intHexFormatString, buttonFlagsInt & 0xfffffff9);
+					stringBuilder.AppendFormat(Parsing.integerFormat, intHexFormatString, buttonFlagsInt & 0xfffffff9);
 
 					buttonFlagsValue.Value = stringBuilder.ToString();
 
@@ -840,7 +841,7 @@ namespace TinyUIFixForTS3Patcher
 					XmlNode minThumbSizeValue = minThumbSize.Attributes.GetNamedItem("value");
 
 					stringBuilder.Clear();
-					stringBuilder.Append((int) Math.Floor((float) int.Parse(minThumbSizeValue.Value, Parsing.integerFormat) * multiplier));
+					stringBuilder.AppendFormat(Parsing.integerFormat, intDecimalFormatString, (int) Math.Floor((float) int.Parse(minThumbSizeValue.Value, Parsing.integerFormat) * multiplier));
 
 					minThumbSizeValue.Value = stringBuilder.ToString();
 
@@ -869,7 +870,7 @@ namespace TinyUIFixForTS3Patcher
 					XmlNode rowHeightValue = rowHeight.Attributes.GetNamedItem("value");
 
 					stringBuilder.Clear();
-					stringBuilder.Append((uint) Math.Floor((float) uint.Parse(rowHeightValue.Value, Parsing.integerFormat) * multiplier));
+					stringBuilder.AppendFormat(Parsing.integerFormat, intDecimalFormatString, (uint) Math.Floor((float) uint.Parse(rowHeightValue.Value, Parsing.integerFormat) * multiplier));
 
 					rowHeightValue.Value = stringBuilder.ToString();
 
@@ -1061,7 +1062,7 @@ namespace TinyUIFixForTS3Patcher
 						if (matches.Success)
 						{
 							stringBuilder.Clear();
-							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value, Parsing.floatFormat) * multiplier);
+							stringBuilder.AppendFormat(Parsing.floatFormat, floatFormatString, float.Parse(matches.Groups[1].Value, Parsing.floatFormat) * multiplier);
 							stringBuilder.Append(matches.Groups[2].Value);
 							stringBuilder.Append(matches.Groups[3].Value);
 							rewrittenValue = stringBuilder.ToString();
@@ -1075,7 +1076,7 @@ namespace TinyUIFixForTS3Patcher
 						if (matches.Success)
 						{
 							stringBuilder.Clear();
-							stringBuilder.AppendFormat(floatFormatString, float.Parse(matches.Groups[1].Value, Parsing.floatFormat) * multiplier);
+							stringBuilder.AppendFormat(Parsing.floatFormat, floatFormatString, float.Parse(matches.Groups[1].Value, Parsing.floatFormat) * multiplier);
 							stringBuilder.Append(matches.Groups[2].Value);
 							rewrittenValue = stringBuilder.ToString();
 						}
