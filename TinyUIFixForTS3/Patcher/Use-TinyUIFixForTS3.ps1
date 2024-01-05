@@ -4976,7 +4976,7 @@ try
 		& $AddPatchsets $ImportedInactivePatchsets.Patchsets
 
 		$AvailablePatchsetsForConfigurator = $AvailablePatchsetsForConfigurator | Sort-Object -Property @{
-			Expression = {"$(if ($_.ID -eq 'Nucleus') {0} elseif ($_.ID -eq 'VanillaCoreCompatibilityPatch') {1} else {2})$($_.Name)$($_.ID)"}
+			Expression = {"$(if ($_.ID -eq 'Nucleus') {0} elseif ($_.ID -eq 'VanillaCoreCompatibilityPatch') {1} elseif ($Null -ne $_.RecommendationMessage) {2} else {3})$($_.Name)$($_.ID)"}
 		}
 
 		[TinyUIFixPSForTS3]::WriteLineQuickly([Environment]::NewLine)
