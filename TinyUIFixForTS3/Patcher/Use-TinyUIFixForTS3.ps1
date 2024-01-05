@@ -2752,6 +2752,7 @@ function Find-InstanceFieldsForGroupedFieldPaths ([Mono.Cecil.TypeDefinition] $I
 function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.AssemblyScaling+PrimitiveAssemblyResolver] $AssemblyResolver, $AssemblyKeysByResourceKey)
 {
 	$FloatOccurrenceCounts = [Collections.Generic.Dictionary[Float, UInt32]]::new()
+	$DoubleOccurrenceCounts = [Collections.Generic.Dictionary[Double, UInt32]]::new()
 	$IntegerOccurrenceCounts = [Collections.Generic.Dictionary[Int32, UInt32]]::new()
 	$ArraysBeingScaled = [Collections.Generic.List[ValueTuple[Mono.Cecil.FieldDefinition, Int32, Bool]]]::new()
 	$StaticFieldTypeLookup = [Collections.Generic.Dictionary[String, Mono.Cecil.TypeReference]]::new()
@@ -2795,6 +2796,20 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Conv_R4)
 		}
 
+		$ScaleDoubleOnStack = `
+		{
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldsfld, $GetUIScale)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Callvirt, $GetUIScaleInvoke)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Conv_R8)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Mul)
+		}
+
+		$TruncateDoubleOnStack = `
+		{
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Conv_I8)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Conv_R8)
+		}
+
 		$ScaleIntOnStack = `
 		{
 			Param ([Mono.Cecil.Cil.OpCode[]] $ToInt, [Switch] $Unsigned)
@@ -2822,6 +2837,7 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 			}
 
 			$FloatOccurrenceCounts.Clear()
+			$DoubleOccurrenceCounts.Clear()
 			$IntegerOccurrenceCounts.Clear()
 			$ArraysBeingScaled.Clear()
 			$LocalOfTypeCache.Clear()
@@ -2889,11 +2905,28 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 								}
 							}
 						}
-						elseif ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldc_R4)
+						elseif ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldc_R4 -or $Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldc_R8)
 						{
-							foreach ($Value in $Patch[1].Floats)
+							if ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldc_R4)
 							{
-								$IsSimpleScalar = $Value -as [Float]
+								$FloatType = [Float]
+								$ScalarsToScale = $Patch[1].Floats
+								$ScalarOccurrenceCounts = $FloatOccurrenceCounts
+								$ScaleScalarOnStack = $ScaleFloatOnStack
+								$TruncateScalarOnStack = $TruncateFloatOnStack
+							}
+							else
+							{
+								$FloatType = [Double]
+								$ScalarsToScale = $Patch[1].Doubles
+								$ScalarOccurrenceCounts = $DoubleOccurrenceCounts
+								$ScaleScalarOnStack = $ScaleDoubleOnStack
+								$TruncateScalarOnStack = $TruncateDoubleOnStack
+							}
+
+							foreach ($Value in $ScalarsToScale)
+							{
+								$IsSimpleScalar = $Value -as $FloatType
 								$Scalar = $IsSimpleScalar
 
 								$ShouldTruncate = if ($IsSimpleScalar)
@@ -2902,14 +2935,14 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 								}
 								else
 								{
-									$Scalar = $Value._ -as [Float]
+									$Scalar = $Value._ -as $FloatType
 									$Value.Truncated
 								}
 
 								$ShouldScaleBasedOnScalar = if ($Null -ne $Scalar)
 								{
 									$OccurrenceCount = $Null
-									$FloatOccurrenceCounts[$Scalar] = if ($FloatOccurrenceCounts.TryGetValue($Scalar, [Ref] $OccurrenceCount)) {(++$OccurrenceCount)} else {($OccurrenceCount = 0)}
+									$ScalarOccurrenceCounts[$Scalar] = if ($ScalarOccurrenceCounts.TryGetValue($Scalar, [Ref] $OccurrenceCount)) {(++$OccurrenceCount)} else {($OccurrenceCount = 0)}
 
 									$Instruction.Operand -eq $Scalar
 								}
@@ -2940,11 +2973,11 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 								{
 									$AfterLoad = $Instruction.Next
 
-									(& $ScaleFloatOnStack).ForEach{$IL.InsertBefore($AfterLoad, $_)}
+									(& $ScaleScalarOnStack).ForEach{$IL.InsertBefore($AfterLoad, $_)}
 
 									if ($ShouldTruncate)
 									{
-										(& $TruncateFloatOnStack).ForEach{$IL.InsertBefore($AfterLoad, $_)}
+										(& $TruncateScalarOnStack).ForEach{$IL.InsertBefore($AfterLoad, $_)}
 									}
 
 									$Instruction = $AfterLoad
@@ -3127,6 +3160,10 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 												{
 													(& $ScaleFloatOnStack).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
 												}
+												elseif ($TypeOfValue.Name -ceq 'Double')
+												{
+													(& $ScaleDoubleOnStack).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
+												}
 												elseif ($TypeOfValue.Name -ceq 'Int32')
 												{
 													(& $ScaleIntOnStack ([Mono.Cecil.Cil.OpCodes]::Conv_I4)).ForEach{$IL.InsertBefore($AfterLoadOfValue, $_)}
@@ -3191,6 +3228,13 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_R4)
 																& $ScaleFloatOnStack
 																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_R4)
+															}
+															elseif ($ResolvedField.FieldType.Name -ceq 'Double')
+															{
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Dup)
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldind_R8)
+																& $ScaleDoubleOnStack
+																[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Stind_R8)
 															}
 															elseif ($ResolvedField.FieldType.Name -ceq 'Int32')
 															{
@@ -3442,6 +3486,10 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 							if ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldelem_R4)
 							{
 								& $ScaleArrayUsing $ScaleFloatOnStack
+							}
+							elseif ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldelem_R8)
+							{
+								& $ScaleArrayUsing $ScaleDoubleOnStack
 							}
 							elseif ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldelem_I4)
 							{
