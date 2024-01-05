@@ -16,6 +16,34 @@ Param (
 			$PatchsetConfiguration,
 
 	[Parameter()]
+		[ArgumentCompleter(
+			{
+				Param ($CommandName, $ParameterName, $WordToComplete, $CommandAST, $BoundParameters)
+
+				$PatchsetsDirectory = [IO.DirectoryInfo] (Join-Path $PSScriptRoot Patchsets)
+
+				if (-not $PatchsetsDirectory.Exists) {return}
+
+				$SuggestablePatchsets = ([IO.DirectoryInfo] (Join-Path $PSScriptRoot Patchsets)).EnumerateFiles('*.ps1').BaseName
+				[Array]::Sort($SuggestablePatchsets, [StringComparer]::InvariantCultureIgnoreCase)
+
+				if (-not ($WordToComplete -is [String])) {return $SuggestablePatchsets | ForEach-Object {$_}}
+
+				$Global:CommandAST = $CommandAST
+				$FromPatchsetLoadOrderAST = $CommandAST.CommandElements.Where({$_ -is [Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -eq 'PatchsetLoadOrder'}, 'SkipUntil')
+
+				if ($FromPatchsetLoadOrderAST.Count -eq 0) {return $SuggestablePatchsets | ForEach-Object {$_}}
+
+				$CurrentValuesAST = $FromPatchsetLoadOrderAST[1]
+
+				if ($Null -eq $CurrentValuesAST -or -not ($CurrentValuesAST -is [Management.Automation.Language.ArrayLiteralAst])) {return $SuggestablePatchsets | ForEach-Object {$_}}
+
+				$CurrentValues = [String[]] $CurrentValuesAST.Elements.Where{$_ -is [Management.Automation.Language.ConstantExpressionAst]}.Value.ForEach{([String] $_).Trim()}
+
+				$Prefix = $WordToComplete.TrimStart()
+				$SuggestablePatchsets | Where-Object {$_.StartsWith($Prefix, $True, [Globalization.CultureInfo]::InvariantCultureIgnoreCase) -and $_ -notin $CurrentValues}
+			}
+		)]
 			[String[]] $PatchsetLoadOrder,
 
 	[Parameter()]
