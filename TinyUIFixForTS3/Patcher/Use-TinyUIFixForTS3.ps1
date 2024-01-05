@@ -155,7 +155,7 @@ $FormatErrorRecord = `
 
 	if ($Null -eq $E.Exception)
 	{
-		return $_ | Out-String
+		return $E | Out-String
 	}
 
 	$L = [Environment]::Newline
@@ -170,7 +170,7 @@ $FormatError = `
 
 	$L = [Environment]::Newline
 	$Indent = [String] [Char] 0x00A0 * 4
-	"An unexpected error occurred. Should you like assistance with this error, please assist those assisting you by copying the indented text into your request for assistance. The error was:${L}$($StartOfLineRegEx.Replace("= Tiny UI Fix version $([TinyUIFixPSForTS3]::Version), running on PowerShell v$($PSVersionTable.PSVersion), on $([Environment]::OSVersion.VersionString) =${L}$(& $(if ($E -is [Management.Automation.ErrorRecord]) {$FormatErrorRecord} else {$FormatException}) $_)", $Indent))${L}"
+	"An unexpected error occurred. Should you like assistance with this error, please assist those assisting you by copying the indented text into your request for assistance. The error was:${L}$($StartOfLineRegEx.Replace("= Tiny UI Fix version $([TinyUIFixPSForTS3]::Version), running on PowerShell v$($PSVersionTable.PSVersion), on $([Environment]::OSVersion.VersionString) =${L}$(& $(if ($E -is [Management.Automation.ErrorRecord]) {$FormatErrorRecord} else {$FormatException}) $E)", $Indent))${L}"
 }
 
 
