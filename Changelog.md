@@ -2,6 +2,20 @@
 
 ## Changelog
 
+### Version 1.3.0
+
+#### User-facing
+
+- The generated `tiny-ui-fix.package` file will now function correctly when it is generated on a system with a locale that does not use dots for decimal-points.
+- A compatibility patchset is now included for LazyDuchess's Smooth Patch package.
+- Recommended patchsets are now listed before other patchsets in the configurator. (Excluding the Nucleus and Vanilla Core DLL Compatibility Patches patchsets, which always come first).
+- There is now command-line argument-completion for the `PatchsetLoadOrder` parameter of the `Use-TinyUIFixForTS3.ps1` script, when using PowerShell version 7-or-later.
+- A bug which caused an error to occur when an error was logged from outside the context of a catch statement was fixed. (Non-lexical scoping is great until it's not.)
+
+#### Developer-side
+
+- The `Apply-ConvenientPatchesToAssemblies` function can now scale doubles.
+
 ### Version 1.2.2
 
 #### User-facing
