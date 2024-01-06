@@ -2,6 +2,18 @@
 
 ## Changelog
 
+### Version 1.3.1
+
+#### User-facing
+
+- The `tiny-ui-fix-for-ts3.command` file in the `tiny-ui-fix-for-ts3.command.zip` download for macOS is now executable by default when extracted by Finder on macOS 10.15-and-later (10.15 is macOS Catalina).
+- Links now look a bit nicer in the configurator.
+- When an update is available, the "Check for updates" button in the configurator will now link to the Mod The Sims listing for the Tiny UI Fix, in addition to its GitHub repository.
+
+#### Developer-side
+
+- The implementation for setting file-permissions in a zip-archive using only the standard-library is comical, give it a peek in `Building/Package-SingleFileDistributables.ps1`.
+
 ### Version 1.3.0
 
 #### User-facing
