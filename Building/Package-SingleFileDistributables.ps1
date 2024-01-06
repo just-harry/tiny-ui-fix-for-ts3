@@ -120,6 +120,96 @@ Compress-Archive -Force -CompressionLevel Optimal -LiteralPath (Get-ChildItem -L
 Remove-Item -Recurse -Force -LiteralPath $ZipScratchPath -ErrorAction Ignore
 
 
+<# This is so ridiculously stupid. Why not just expose the "version made by" field? It's but a harmless ushort.  #>
+class BadZipArchiveAPIWorkaroundStream : IO.Stream
+{
+	[IO.Stream] $BaseStream
+	[Int64] $PositionOfLastSignature
+
+	BadZipArchiveAPIWorkaroundStream ([IO.Stream] $BaseStream)
+	{
+		$This.BaseStream = $BaseStream
+		$This.PositionOfLastSignature = [Int64]::MinValue
+	}
+
+	[Void] Write ([Byte[]] $Buffer, [Int32] $Offset, [Int32] $Count)
+	{
+		if (
+			     $Count -eq 4 `
+			-and $Buffer[0] -eq 0x50 `
+			-and $Buffer[1] -eq 0x4B `
+			-and $Buffer[2] -eq 0x01 `
+			-and $Buffer[3] -eq 0x02
+		)
+		{
+			$This.PositionOfLastSignature = $This.BaseStream.Position
+		}
+		elseif ($This.BaseStream.Position -eq $This.PositionOfLastSignature + 5)
+		{
+			$Buffer[0] = 3
+		}
+
+		$This.BaseStream.Write($Buffer, $Offset, $Count)
+	}
+
+	[Int32] WriteByte ([Byte] $Value)
+	{
+		if ($This.BaseStream.Position -eq $This.PositionOfLastSignature + 5)
+		{
+			$Value = 3
+		}
+
+		return $This.BaseStream.WriteByte($Value)
+	}
+
+	[Int32] Read ([Byte[]] $Buffer, [Int32] $Offset, [Int32] $Count) {return $This.BaseStream.Read($Buffer, $Offset, $Count)}
+	[Int32] ReadByte () {return $This.BaseStream.ReadByte()}
+	[Bool] get_CanRead () {return $This.BaseStream.CanRead}
+	[Bool] get_CanSeek () {return $This.BaseStream.CanSeek}
+	[Bool] get_CanWrite () {return $This.BaseStream.CanWrite}
+	[Void] Flush () {$This.BaseStream.Flush()}
+	[Int64] get_Length () {return $This.BaseStream.Length}
+	[Int64] get_Position () {return $This.BaseStream.Position}
+	[Void] set_Position ([Int64] $Position) {$This.BaseStream.Position = $Position}
+	[Void] SetLength ([Int64] $Length) {$This.BaseStream.SetLength($Length)}
+	[Int64] Seek ([Int64] $Offset, [IO.SeekOrigin] $Origin) {return $This.BaseStream.Seek($Offset, $Origin)}
+	[Void] Dispose ([Bool] $Disposing) {$This.BaseStream.Dispose()}
+}
+
+
+if ($Null -eq ([Management.Automation.PSTypeName] 'System.IO.Compression.ZipFile').Type)
+{
+	Add-Type -Assembly 'System.IO.Compression.FileSystem'
+}
+
+
+$MacOSZipArchive = $Null
+
+try
+{
+	$MacOSZipArchive = [IO.Compression.ZipArchive]::new(
+		[BadZipArchiveAPIWorkaroundStream]::new(
+			[IO.FileStream]::new($MacOSZipPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read -bor [IO.FileShare]::Delete)
+		),
+		[IO.Compression.ZipArchiveMode]::Update
+	)
+
+	foreach ($Entry in $MacOSZipArchive.Entries)
+	{
+		$Attributes = $Entry.ExternalAttributes            # rwxrwxr-x
+		$Attributes = $Attributes -bor ([Convert]::ToUInt32('111111101', 2) -shl 16)
+		$Entry.ExternalAttributes = $Attributes
+	}
+}
+finally
+{
+	if ($Null -ne $MacOSZipArchive)
+	{
+		$MacOSZipArchive.Dispose()
+	}
+}
+
+
 [PSCustomObject] @{
 	Windows = Get-Item -LiteralPath $WindowsPath
 	WindowsZip = Get-Item -LiteralPath $WindowsZipPath
