@@ -423,6 +423,10 @@ class TinyUIFixPSForTS3
 	static [Version] $Version = [Version]::new(1, 3, 0)
 	static [URI] $VersionCheckURL = [URI]::new('https://github.com/just-harry/tiny-ui-fix-for-ts3/raw/most-recent-version/VERSION')
 	static [URI] $HomePageURL = [URI]::new('https://github.com/just-harry/tiny-ui-fix-for-ts3')
+	static [Collections.Specialized.OrderedDictionary] $HomePageURLs = [Ordered] @{
+		ModTheSims = [URI]::new('https://modthesims.info/d/681624')
+		GitHub = [URI]::new('https://github.com/just-harry/tiny-ui-fix-for-ts3')
+	}
 
 	static [String] $GeneratedPackageName = 'tiny-ui-fix.package'
 	static [String] $ModsFolderName = 'TinyUIFix'
@@ -4345,13 +4349,13 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 
 					$Message = if ($AvailableVersion.Unknown)
 					{
-						"The check for updates failed. Please refer to <a href=`"$([TinyUIFixPSForTS3]::HomePageURL)`">$([TinyUIFixPSForTS3]::HomePageURL)</a> instead."
+						"The check for updates failed. Please refer to $([TinyUIFixPSForTS3]::HomePageURLs.GetEnumerator().ForEach{'<a class="link" href="{0}">{1}</a>' -f $_.Value, $_.Key} -join ' or ') instead."
 					}
 					else
 					{
 						if ($AvailableVersion.Version -gt [TinyUIFixPSForTS3]::Version)
 						{
-							"Version $($AvailableVersion.Version) is available. It can be downloaded from <a href=`"$([TinyUIFixPSForTS3]::HomePageURL)`">$([TinyUIFixPSForTS3]::HomePageURL)</a>."
+							"Version $($AvailableVersion.Version) is available. It can be downloaded from $([TinyUIFixPSForTS3]::HomePageURLs.GetEnumerator().ForEach{'<a class="link" href="{0}">{1}</a>' -f $_.Value, $_.Key} -join ' or ')."
 						}
 						else
 						{
