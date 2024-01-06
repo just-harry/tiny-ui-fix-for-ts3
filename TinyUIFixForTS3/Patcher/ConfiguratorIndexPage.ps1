@@ -44,6 +44,21 @@ $MinimumPatchsetLoadOrderPosition = 2
 				color: inherit;
 			}
 
+			a.link
+			{
+				color: rgb(0, 20, 240);
+			}
+
+			a.link:visited
+			{
+				color: rgb(0, 20, 200);
+			}
+
+			a.link:hover, a.link:focus
+			{
+				color: rgb(0, 80, 240);
+			}
+
 			hr
 			{
 				color: inherit;
