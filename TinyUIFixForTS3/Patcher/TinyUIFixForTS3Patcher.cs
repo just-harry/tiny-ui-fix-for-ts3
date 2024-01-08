@@ -230,6 +230,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -249,12 +250,16 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						if (propertyName.Value == "ScaleFactor") {scaleFactor = property;}
 					}
 
-					XmlNode scaleFactorValue = scaleFactor.Attributes.GetNamedItem("value");
-					scaleFactorValue.Value = ScalePointStringBy(scaleFactorValue.Value, multiplier);
+					if (scaleFactor != null)
+					{
+						XmlNode scaleFactorValue = scaleFactor.Attributes.GetNamedItem("value");
+						scaleFactorValue.Value = ScalePointStringBy(scaleFactorValue.Value, multiplier);
+					}
 				}
 				else if (
 					   nodeClass.Value == "Button"
@@ -276,6 +281,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -288,21 +294,27 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "WinProcs") {winProcs = property;}
 					}
 
-					XmlNode buttonFlagsValue = buttonFlags.Attributes.GetNamedItem("value");
-					var buttonFlagsInt = Convert.ToUInt32(buttonFlagsValue.Value, 16);
+					if (buttonFlags != null)
+					{
+						XmlNode buttonFlagsValue = buttonFlags.Attributes.GetNamedItem("value");
+						var buttonFlagsInt = Convert.ToUInt32(buttonFlagsValue.Value, 16);
 
-					stringBuilder.Clear();
-					/* The 0b100 button-flag inhibits vertical scaling, similarly the 0b010 flag inhibits horizontal scaling.
-					   So, we clear those bits if they're set. */
-					stringBuilder.AppendFormat(Parsing.integerFormat, intHexFormatString, buttonFlagsInt & 0xfffffff9);
+						stringBuilder.Clear();
+						/* The 0b100 button-flag inhibits vertical scaling, similarly the 0b010 flag inhibits horizontal scaling.
+						   So, we clear those bits if they're set. */
+						stringBuilder.AppendFormat(Parsing.integerFormat, intHexFormatString, buttonFlagsInt & 0xfffffff9);
 
-					buttonFlagsValue.Value = stringBuilder.ToString();
+						buttonFlagsValue.Value = stringBuilder.ToString();
+					}
 
-					XmlNode captionOffsetValue = captionOffset.Attributes.GetNamedItem("value");
-					captionOffsetValue.Value = ScalePointStringBy(captionOffsetValue.Value, multiplier);
+					if (captionOffset != null)
+					{
+						XmlNode captionOffsetValue = captionOffset.Attributes.GetNamedItem("value");
+						captionOffsetValue.Value = ScalePointStringBy(captionOffsetValue.Value, multiplier);
+					}
 
-					foreach (XmlNode drawable in buttonDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
-					foreach (XmlNode border in captionBorder) {ScaleNodeBy(border, multiplier, ref state);}
+					if (buttonDrawable != null) {foreach (XmlNode drawable in buttonDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
+					if (captionBorder != null) {foreach (XmlNode border in captionBorder) {ScaleNodeBy(border, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "Borders")
 				{
@@ -316,6 +328,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Left") {left = property;}
 						else if (propertyName.Value == "Top") {top = property;}
@@ -323,17 +336,29 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "Bottom") {bottom = property;}
 					}
 
-					XmlNode leftValue = left.Attributes.GetNamedItem("value");
-					leftValue.Value = ScaleValueStringBy(leftValue.Value, multiplier);
+					if (left != null)
+					{
+						XmlNode leftValue = left.Attributes.GetNamedItem("value");
+						leftValue.Value = ScaleValueStringBy(leftValue.Value, multiplier);
+					}
 
-					XmlNode topValue = top.Attributes.GetNamedItem("value");
-					topValue.Value = ScaleValueStringBy(topValue.Value, multiplier);
+					if (top != null)
+					{
+						XmlNode topValue = top.Attributes.GetNamedItem("value");
+						topValue.Value = ScaleValueStringBy(topValue.Value, multiplier);
+					}
 
-					XmlNode rightValue = right.Attributes.GetNamedItem("value");
-					rightValue.Value = ScaleValueStringBy(rightValue.Value, multiplier);
+					if (right != null)
+					{
+						XmlNode rightValue = right.Attributes.GetNamedItem("value");
+						rightValue.Value = ScaleValueStringBy(rightValue.Value, multiplier);
+					}
 
-					XmlNode bottomValue = bottom.Attributes.GetNamedItem("value");
-					bottomValue.Value = ScaleValueStringBy(bottomValue.Value, multiplier);
+					if (bottom != null)
+					{
+						XmlNode bottomValue = bottom.Attributes.GetNamedItem("value");
+						bottomValue.Value = ScaleValueStringBy(bottomValue.Value, multiplier);
+					}
 				}
 				else if (nodeClass.Value == "ImageDrawable" || nodeClass.Value == "IconDrawable")
 				{
@@ -344,12 +369,16 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						if (propertyName.Value == "Scale") {scale = property;}
 					}
 
-					XmlNode scaleValue = scale.Attributes.GetNamedItem("value");
-					scaleValue.Value = ScaleValueStringBy(scaleValue.Value, multiplier);
+					if (scale != null)
+					{
+						XmlNode scaleValue = scale.Attributes.GetNamedItem("value");
+						scaleValue.Value = ScaleValueStringBy(scaleValue.Value, multiplier);
+					}
 				}
 				else if (nodeClass.Value == "Text")
 				{
@@ -361,6 +390,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -371,7 +401,7 @@ namespace TinyUIFixForTS3Patcher
 					}
 
 					if (fillDrawable != null) {foreach (XmlNode drawable in fillDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
-					foreach (XmlNode border in textBorder) {ScaleNodeBy(border, multiplier, ref state);}
+					if (textBorder != null) {foreach (XmlNode border in textBorder) {ScaleNodeBy(border, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "Glide")
 				{
@@ -382,12 +412,16 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						if (propertyName.Value == "Offset") {offset = property;}
 					}
 
-					XmlNode offsetValue = offset.Attributes.GetNamedItem("value");
-					offsetValue.Value = ScalePointStringBy(offsetValue.Value, multiplier);
+					if (offset != null)
+					{
+						XmlNode offsetValue = offset.Attributes.GetNamedItem("value");
+						offsetValue.Value = ScalePointStringBy(offsetValue.Value, multiplier);
+					}
 				}
 				else if (nodeClass.Value == "Grow")
 				{
@@ -398,11 +432,12 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						if (propertyName.Value == "Boundary Change Rect") {boundaryChangeRect = property;}
 					}
 
-					foreach (XmlNode border in boundaryChangeRect) {ScaleNodeBy(border, multiplier, ref state);}
+					if (boundaryChangeRect != null) {foreach (XmlNode border in boundaryChangeRect) {ScaleNodeBy(border, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "HudLayout")
 				{
@@ -414,6 +449,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Anchor") {anchor = property;}
 						else if (propertyName.Value == "Dimensions") {dimensions = property;}
@@ -457,6 +493,7 @@ namespace TinyUIFixForTS3Patcher
 							if (property.NodeType != XmlNodeType.Element) {continue;}
 
 							XmlNode propertyName = property.Attributes.GetNamedItem("name");
+							if (propertyName == null) {break;}
 
 							if (propertyName.Value == "Anchor") {anchor = property;}
 						}
@@ -487,11 +524,12 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						if (propertyName.Value == "Drawables") {drawables = property;}
 					}
 
-					foreach (XmlNode drawable in drawables) {ScaleNodeBy(drawable, multiplier, ref state);}
+					if (drawables != null) {foreach (XmlNode drawable in drawables) {ScaleNodeBy(drawable, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "TextEdit")
 				{
@@ -505,6 +543,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -515,10 +554,10 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "WinProcs") {winProcs = property;}
 					}
 
-					foreach (XmlNode border in borderWidth) {ScaleNodeBy(border, multiplier, ref state);}
+					if (borderWidth != null) {foreach (XmlNode border in borderWidth) {ScaleNodeBy(border, multiplier, ref state);}}
 					if (clipBorders != null) {foreach (XmlNode border in clipBorders) {ScaleNodeBy(border, multiplier, ref state);}}
-					foreach (XmlNode drawable in hScrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
-					foreach (XmlNode drawable in vScrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
+					if (hScrollbarDrawable != null) {foreach (XmlNode drawable in hScrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
+					if (vScrollbarDrawable != null) {foreach (XmlNode drawable in vScrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "ComboBox" || nodeClass.Value == "Sims3ComboBox")
 				{
@@ -535,6 +574,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -549,13 +589,16 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "WinProcs") {winProcs = property;}
 					}
 
-					XmlNode pulldownVerticalOffsetValue = pulldownVerticalOffset.Attributes.GetNamedItem("value");
-					pulldownVerticalOffsetValue.Value = ScaleValueStringBy(pulldownVerticalOffsetValue.Value, multiplier);
+					if (pulldownVerticalOffset != null)
+					{
+						XmlNode pulldownVerticalOffsetValue = pulldownVerticalOffset.Attributes.GetNamedItem("value");
+						pulldownVerticalOffsetValue.Value = ScaleValueStringBy(pulldownVerticalOffsetValue.Value, multiplier);
+					}
 
-					foreach (XmlNode border in captionGutters) {ScaleNodeBy(border, multiplier, ref state);}
-					foreach (XmlNode drawable in comboBoxDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
-					foreach (XmlNode border in gutters) {ScaleNodeBy(border, multiplier, ref state);}
-					foreach (XmlNode drawable in scrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
+					if (captionGutters != null) {foreach (XmlNode border in captionGutters) {ScaleNodeBy(border, multiplier, ref state);}}
+					if (comboBoxDrawable != null) {foreach (XmlNode drawable in comboBoxDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
+					if (gutters != null) {foreach (XmlNode border in gutters) {ScaleNodeBy(border, multiplier, ref state);}}
+					if (scrollbarDrawable != null) {foreach (XmlNode drawable in scrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
 					if (scrollbarOffset != null) {foreach (XmlNode border in scrollbarOffset) {ScaleNodeBy(border, multiplier, ref state);}}
 					if (pullDownBackgroundDrawable != null) {foreach (XmlNode drawable in pullDownBackgroundDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
 				}
@@ -576,6 +619,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -592,20 +636,36 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "WinProcs") {winProcs = property;}
 					}
 
-					XmlNode maxHeightValue = maxHeight.Attributes.GetNamedItem("value");
-					maxHeightValue.Value = ScaleValueStringBy(maxHeightValue.Value, multiplier);
-					XmlNode maxWidthValue = maxWidth.Attributes.GetNamedItem("value");
-					maxWidthValue.Value = ScaleValueStringBy(maxWidthValue.Value, multiplier);
-					XmlNode minHeightValue = minHeight.Attributes.GetNamedItem("value");
-					minHeightValue.Value = ScaleValueStringBy(minHeightValue.Value, multiplier);
-					XmlNode minWidthValue = minWidth.Attributes.GetNamedItem("value");
-					minWidthValue.Value = ScaleValueStringBy(minWidthValue.Value, multiplier);
+					if (maxHeight != null)
+					{
+						XmlNode maxHeightValue = maxHeight.Attributes.GetNamedItem("value");
+						maxHeightValue.Value = ScaleValueStringBy(maxHeightValue.Value, multiplier);
+					}
 
-					foreach (XmlNode border in clientAreaBorder) {ScaleNodeBy(border, multiplier, ref state);}
-					foreach (XmlNode border in closeButtonBorder) {ScaleNodeBy(border, multiplier, ref state);}
-					foreach (XmlNode drawable in closeButtonDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
+					if (maxWidth != null)
+					{
+						XmlNode maxWidthValue = maxWidth.Attributes.GetNamedItem("value");
+						maxWidthValue.Value = ScaleValueStringBy(maxWidthValue.Value, multiplier);
+					}
+
+					if (minHeight != null)
+					{
+						XmlNode minHeightValue = minHeight.Attributes.GetNamedItem("value");
+						minHeightValue.Value = ScaleValueStringBy(minHeightValue.Value, multiplier);
+					}
+
+					if (minWidth != null)
+					{
+						XmlNode minWidthValue = minWidth.Attributes.GetNamedItem("value");
+						minWidthValue.Value = ScaleValueStringBy(minWidthValue.Value, multiplier);
+					}
+
+
+					if (clientAreaBorder != null) {foreach (XmlNode border in clientAreaBorder) {ScaleNodeBy(border, multiplier, ref state);}}
+					if (closeButtonBorder != null) {foreach (XmlNode border in closeButtonBorder) {ScaleNodeBy(border, multiplier, ref state);}}
+					if (closeButtonDrawable != null) {foreach (XmlNode drawable in closeButtonDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
 					if (dialogDrawable != null) {foreach (XmlNode drawable in dialogDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
-					foreach (XmlNode border in titleTextBorder) {ScaleNodeBy(border, multiplier, ref state);}
+					if (titleTextBorder != null) {foreach (XmlNode border in titleTextBorder) {ScaleNodeBy(border, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "FillBarController")
 				{
@@ -614,6 +674,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -634,6 +695,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -646,12 +708,23 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "WinProcs") {winProcs = property;}
 					}
 
-					XmlNode cellAreaValue = cellArea.Attributes.GetNamedItem("value");
-					cellAreaValue.Value = ScalePointStringBy(cellAreaValue.Value, multiplier);
-					XmlNode cellPaddingValue = cellPadding.Attributes.GetNamedItem("value");
-					cellPaddingValue.Value = ScaleAreaStringBy(cellPaddingValue.Value, multiplier);
-					XmlNode gridPaddingValue = gridPadding.Attributes.GetNamedItem("value");
-					gridPaddingValue.Value = ScaleAreaStringBy(gridPaddingValue.Value, multiplier);
+					if (cellArea != null)
+					{
+						XmlNode cellAreaValue = cellArea.Attributes.GetNamedItem("value");
+						cellAreaValue.Value = ScalePointStringBy(cellAreaValue.Value, multiplier);
+					}
+
+					if (cellPadding != null)
+					{
+						XmlNode cellPaddingValue = cellPadding.Attributes.GetNamedItem("value");
+						cellPaddingValue.Value = ScaleAreaStringBy(cellPaddingValue.Value, multiplier);
+					}
+
+					if (gridPadding != null)
+					{
+						XmlNode gridPaddingValue = gridPadding.Attributes.GetNamedItem("value");
+						gridPaddingValue.Value = ScaleAreaStringBy(gridPaddingValue.Value, multiplier);
+					}
 
 					if (gridClipPadding != null)
 					{
@@ -688,6 +761,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -700,6 +774,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -719,6 +794,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -736,6 +812,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "ControlID") {controlID = property;}
 						else if (propertyName.Value == "Horizontal-MaxWidth") {horizontalMaxWidth = property;}
@@ -743,23 +820,32 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "Subtract Height Buffer") {subtractHeightBuffer = property;}
 					}
 
-					XmlNode subtractHeightBufferValue = subtractHeightBuffer.Attributes.GetNamedItem("value");
-					subtractHeightBufferValue.Value = ScaleValueStringBy(subtractHeightBufferValue.Value, multiplier);
-
-					XmlNode horizontalMaxWidthValue = horizontalMaxWidth.Attributes.GetNamedItem("value");
-					float horizontalMaxWidthScalar = ValueFromString(horizontalMaxWidthValue.Value);
-
-					if (horizontalMaxWidthScalar != -1)
+					if (subtractHeightBuffer != null)
 					{
-						horizontalMaxWidthValue.Value = ValueToString(horizontalMaxWidthScalar * multiplier);
+						XmlNode subtractHeightBufferValue = subtractHeightBuffer.Attributes.GetNamedItem("value");
+						subtractHeightBufferValue.Value = ScaleValueStringBy(subtractHeightBufferValue.Value, multiplier);
 					}
 
-					XmlNode verticalMaxHeightValue = verticalMaxHeight.Attributes.GetNamedItem("value");
-					float verticalMaxHeightScalar = ValueFromString(verticalMaxHeightValue.Value);
-
-					if (verticalMaxHeightScalar != -1)
+					if (horizontalMaxWidth != null)
 					{
-						verticalMaxHeightValue.Value = ValueToString(verticalMaxHeightScalar * multiplier);
+						XmlNode horizontalMaxWidthValue = horizontalMaxWidth.Attributes.GetNamedItem("value");
+						float horizontalMaxWidthScalar = ValueFromString(horizontalMaxWidthValue.Value);
+
+						if (horizontalMaxWidthScalar != -1)
+						{
+							horizontalMaxWidthValue.Value = ValueToString(horizontalMaxWidthScalar * multiplier);
+						}
+					}
+
+					if (verticalMaxHeight != null)
+					{
+						XmlNode verticalMaxHeightValue = verticalMaxHeight.Attributes.GetNamedItem("value");
+						float verticalMaxHeightScalar = ValueFromString(verticalMaxHeightValue.Value);
+
+						if (verticalMaxHeightScalar != -1)
+						{
+							verticalMaxHeightValue.Value = ValueToString(verticalMaxHeightScalar * multiplier);
+						}
 					}
 				}
 				else if (nodeClass.Value == "FrameDrawable")
@@ -771,11 +857,12 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						if (propertyName.Value == "BorderWidth") {borderWidth = property;}
 					}
 
-					foreach (XmlNode border in borderWidth) {ScaleNodeBy(border, multiplier, ref state);}
+					if (borderWidth != null) {foreach (XmlNode border in borderWidth) {ScaleNodeBy(border, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "Slider")
 				{
@@ -786,6 +873,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -796,7 +884,7 @@ namespace TinyUIFixForTS3Patcher
 
 					HandleLayoutWinProcs(controlID, ref winProcs, state.result.sliderLayoutWinProcsByControlID, NodeScalingState.State.WinProcsForSlider, multiplier, ref state);
 
-					foreach (XmlNode drawable in sliderDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
+					if (sliderDrawable != null) {foreach (XmlNode drawable in sliderDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "SceneMgrWindow")
 				{
@@ -807,6 +895,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -829,6 +918,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -838,16 +928,19 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "WinProcs") {winProcs = property;}
 					}
 
-					XmlNode minThumbSizeValue = minThumbSize.Attributes.GetNamedItem("value");
+					if (minThumbSize != null)
+					{
+						XmlNode minThumbSizeValue = minThumbSize.Attributes.GetNamedItem("value");
 
-					stringBuilder.Clear();
-					stringBuilder.AppendFormat(Parsing.integerFormat, intDecimalFormatString, (int) Math.Floor((float) int.Parse(minThumbSizeValue.Value, Parsing.integerFormat) * multiplier));
+						stringBuilder.Clear();
+						stringBuilder.AppendFormat(Parsing.integerFormat, intDecimalFormatString, (int) Math.Floor((float) int.Parse(minThumbSizeValue.Value, Parsing.integerFormat) * multiplier));
 
-					minThumbSizeValue.Value = stringBuilder.ToString();
+						minThumbSizeValue.Value = stringBuilder.ToString();
+					}
 
 					HandleLayoutWinProcs(controlID, ref winProcs, state.result.scrollbarLayoutWinProcsByControlID, NodeScalingState.State.WinProcsForScrollbar, multiplier, ref state);
 
-					foreach (XmlNode drawable in scrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
+					if (scrollbarDrawable != null) {foreach (XmlNode drawable in scrollbarDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "TableContainer" || nodeClass.Value == "AnimationTableContainer")
 				{
@@ -859,6 +952,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -867,15 +961,21 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "ScrollBarPadding") {scrollBarPadding = property;}
 					}
 
-					XmlNode rowHeightValue = rowHeight.Attributes.GetNamedItem("value");
+					if (rowHeight != null)
+					{
+						XmlNode rowHeightValue = rowHeight.Attributes.GetNamedItem("value");
 
-					stringBuilder.Clear();
-					stringBuilder.AppendFormat(Parsing.integerFormat, intDecimalFormatString, (uint) Math.Floor((float) uint.Parse(rowHeightValue.Value, Parsing.integerFormat) * multiplier));
+						stringBuilder.Clear();
+						stringBuilder.AppendFormat(Parsing.integerFormat, intDecimalFormatString, (uint) Math.Floor((float) uint.Parse(rowHeightValue.Value, Parsing.integerFormat) * multiplier));
 
-					rowHeightValue.Value = stringBuilder.ToString();
+						rowHeightValue.Value = stringBuilder.ToString();
+					}
 
-					XmlNode scrollBarPaddingValue = scrollBarPadding.Attributes.GetNamedItem("value");
-					scrollBarPaddingValue.Value = ScaleValueStringBy(scrollBarPaddingValue.Value, multiplier);
+					if (scrollBarPadding != null)
+					{
+						XmlNode scrollBarPaddingValue = scrollBarPadding.Attributes.GetNamedItem("value");
+						scrollBarPaddingValue.Value = ScaleValueStringBy(scrollBarPaddingValue.Value, multiplier);
+					}
 				}
 				else if (nodeClass.Value == "Grid")
 				{
@@ -890,6 +990,7 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
@@ -901,14 +1002,22 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "WinProcs") {winProcs = property;}
 					}
 
-					XmlNode defaultColumnWidthValue = defaultColumnWidth.Attributes.GetNamedItem("value");
-					defaultColumnWidthValue.Value = ScaleValueStringBy(defaultColumnWidthValue.Value, multiplier);
-					XmlNode defaultRowHeightValue = defaultRowHeight.Attributes.GetNamedItem("value");
-					defaultRowHeightValue.Value = ScaleValueStringBy(defaultRowHeightValue.Value, multiplier);
+					if (defaultColumnWidth != null)
+					{
+						XmlNode defaultColumnWidthValue = defaultColumnWidth.Attributes.GetNamedItem("value");
+						defaultColumnWidthValue.Value = ScaleValueStringBy(defaultColumnWidthValue.Value, multiplier);
+					}
 
-					foreach (XmlNode border in cellGutters) {ScaleNodeBy(border, multiplier, ref state);}
-					foreach (XmlNode border in clipGutters) {ScaleNodeBy(border, multiplier, ref state);}
-					foreach (XmlNode border in gutters) {ScaleNodeBy(border, multiplier, ref state);}
+					if (defaultRowHeight != null)
+					{
+						XmlNode defaultRowHeightValue = defaultRowHeight.Attributes.GetNamedItem("value");
+						defaultRowHeightValue.Value = ScaleValueStringBy(defaultRowHeightValue.Value, multiplier);
+					}
+
+
+					if (cellGutters != null) {foreach (XmlNode border in cellGutters) {ScaleNodeBy(border, multiplier, ref state);}}
+					if (clipGutters != null) {foreach (XmlNode border in clipGutters) {ScaleNodeBy(border, multiplier, ref state);}}
+					if (gutters != null) {foreach (XmlNode border in gutters) {ScaleNodeBy(border, multiplier, ref state);}}
 				}
 				else if (nodeClass.Value == "Spinner")
 				{
@@ -919,13 +1028,14 @@ namespace TinyUIFixForTS3Patcher
 						if (property.NodeType != XmlNodeType.Element) {continue;}
 
 						XmlNode propertyName = property.Attributes.GetNamedItem("name");
+						if (propertyName == null) {break;}
 
 						     if (propertyName.Value == "Area") {area = property;}
 						else if (propertyName.Value == "ControlID") {controlID = property;}
 						else if (propertyName.Value == "SpinnerDrawable") {spinnerDrawable = property;}
 					}
 
-					foreach (XmlNode drawable in spinnerDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}
+					if (spinnerDrawable != null) {foreach (XmlNode drawable in spinnerDrawable) {ScaleNodeBy(drawable, multiplier, ref state);}}
 				}
 				else
 				{
