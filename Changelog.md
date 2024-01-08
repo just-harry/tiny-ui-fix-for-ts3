@@ -2,6 +2,14 @@
 
 ## Changelog
 
+### Version 1.3.2
+
+#### User-facing
+
+- To improve mod compatibility, the layout-scaler is now more tolerant of expected XML nodes being absent.
+- To improve the usability of patchset load-order auto-completion in PowerShell 5.1, `*` will now auto-complete to all available patchsets.
+- When checking for updates, "ModTheSims" is now "Mod The Sims".
+
 ### Version 1.3.1
 
 #### User-facing
@@ -21,7 +29,7 @@
 - The generated `tiny-ui-fix.package` file will now function correctly when it is generated on a system with a locale that does not use dots for decimal-points.
 - A compatibility patchset is now included for LazyDuchess's Smooth Patch package.
 - Recommended patchsets are now listed before other patchsets in the configurator. (Excluding the Nucleus and Vanilla Core DLL Compatibility Patches patchsets, which always come first).
-- There is now command-line argument-completion for the `PatchsetLoadOrder` parameter of the `Use-TinyUIFixForTS3.ps1` script, when using PowerShell version 7-or-later.
+- There is now command-line argument-completion for the `PatchsetLoadOrder` parameter of the `Use-TinyUIFixForTS3.ps1` script.
 - A bug which caused an error to occur when an error was logged from outside the context of a catch statement was fixed. (Non-lexical scoping is great until it's not.)
 
 #### Developer-side
