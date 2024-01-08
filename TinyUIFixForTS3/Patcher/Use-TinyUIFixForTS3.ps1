@@ -41,6 +41,7 @@ Param (
 				$CurrentValues = [String[]] $CurrentValuesAST.Elements.Where{$_ -is [Management.Automation.Language.ConstantExpressionAst]}.Value.ForEach{([String] $_).Trim()}
 
 				$Prefix = $WordToComplete.TrimStart()
+				if ($Prefix -ceq '*') {$Prefix = [String]::Empty}
 				$SuggestablePatchsets | Where-Object {$_.StartsWith($Prefix, $True, [Globalization.CultureInfo]::InvariantCultureIgnoreCase) -and $_ -notin $CurrentValues}
 			}
 		)]
