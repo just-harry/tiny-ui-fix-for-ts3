@@ -125,11 +125,13 @@ class BadZipArchiveAPIWorkaroundStream : IO.Stream
 {
 	[IO.Stream] $BaseStream
 	[Int64] $PositionOfLastSignature
+	[Collections.Generic.HashSet[Int64]] $SignaturesEncountered
 
 	BadZipArchiveAPIWorkaroundStream ([IO.Stream] $BaseStream)
 	{
 		$This.BaseStream = $BaseStream
 		$This.PositionOfLastSignature = [Int64]::MinValue
+		$This.SignaturesEncountered = [Collections.Generic.HashSet[Int64]]::new(1)
 	}
 
 	[Void] Write ([Byte[]] $Buffer, [Int32] $Offset, [Int32] $Count)
@@ -143,6 +145,7 @@ class BadZipArchiveAPIWorkaroundStream : IO.Stream
 		)
 		{
 			$This.PositionOfLastSignature = $This.BaseStream.Position
+			$This.SignaturesEncountered.Add($This.PositionOfLastSignature)
 		}
 		elseif ($This.BaseStream.Position -eq $This.PositionOfLastSignature + 5)
 		{
@@ -184,15 +187,16 @@ if ($Null -eq ([Management.Automation.PSTypeName] 'System.IO.Compression.ZipFile
 
 
 $MacOSZipArchive = $Null
+$WorkaroundStream = $Null
+$EntryCount = 0
 
 try
 {
-	$MacOSZipArchive = [IO.Compression.ZipArchive]::new(
-		[BadZipArchiveAPIWorkaroundStream]::new(
-			[IO.FileStream]::new($MacOSZipPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read -bor [IO.FileShare]::Delete)
-		),
-		[IO.Compression.ZipArchiveMode]::Update
+	$WorkaroundStream = [BadZipArchiveAPIWorkaroundStream]::new(
+		[IO.FileStream]::new($MacOSZipPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read -bor [IO.FileShare]::Delete)
 	)
+	$MacOSZipArchive = [IO.Compression.ZipArchive]::new($WorkaroundStream, [IO.Compression.ZipArchiveMode]::Update)
+	$EntryCount = $MacOSZipArchive.Entries.Count
 
 	foreach ($Entry in $MacOSZipArchive.Entries)
 	{
@@ -206,6 +210,11 @@ finally
 	if ($Null -ne $MacOSZipArchive)
 	{
 		$MacOSZipArchive.Dispose()
+
+		if ($WorkaroundStream.SignaturesEncountered.Count -ne $EntryCount)
+		{
+			Write-Error -ErrorAction Continue "`"$MacOSZipPath`" might be corrupt, as it has $EntryCount entr$(if ($EntryCount -eq 1) {'y'} else {'ies'}), but $($WorkaroundStream.SignaturesEncountered.Count) signature$(if ($WorkaroundStream.SignaturesEncountered.Count -ne 1) {'s were'} else {' was'}) encountered."
+		}
 	}
 }
 
