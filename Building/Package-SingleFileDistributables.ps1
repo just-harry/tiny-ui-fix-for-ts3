@@ -196,8 +196,8 @@ try
 
 	foreach ($Entry in $MacOSZipArchive.Entries)
 	{
-		$Attributes = $Entry.ExternalAttributes            # rwxrwxr-x
-		$Attributes = $Attributes -bor ([Convert]::ToUInt32('111111101', 2) -shl 16)
+		$Attributes = $Entry.ExternalAttributes             # rwxrwxr-x                   # mystery bit. (Safari will strip the file-permissions if it isn't set).
+		$Attributes = $Attributes -bor (([Convert]::ToInt32('111111101', 2) -shl 16) -bor (1 -shl 31))
 		$Entry.ExternalAttributes = $Attributes
 	}
 }
