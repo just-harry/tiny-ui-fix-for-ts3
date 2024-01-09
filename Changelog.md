@@ -2,6 +2,17 @@
 
 ## Changelog
 
+### Version 1.3.3
+
+#### User-facing
+
+- The `tiny-ui-fix-for-ts3.command` file in the `tiny-ui-fix-for-ts3.command.zip` download for macOS is now executable by default when the zip is extracted by Safari instead of by Finder.
+- The `tiny-ui-fix-for-ts3.command` script no longer fails on systems that already have PowerShell installed.
+
+#### Developer-side
+
+- The `BadZipArchiveAPIWorkaroundStream` class now has some protection against its slim possibility of corrupting zip files.
+
 ### Version 1.3.2
 
 #### User-facing
