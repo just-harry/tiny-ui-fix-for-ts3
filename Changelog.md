@@ -2,6 +2,32 @@
 
 ## Changelog
 
+### Version 1.3.4
+
+#### User-facing
+
+- The script should now be more likely to find installations of the game on macOS.
+- The 32-bit version of the macOS version of the game is now supported.
+- The script can now automatically detect the Steam version of the game.
+- The script is now able to find resources from game packs (that is, expansion packs and stuff packs).
+- The script is now able to determine which locales are configured for use by the game and by the game packs.
+- The script now has functionality for uninstalling the Tiny UI Fix. This can be used via the "Uninstall" action in the configurator, or via the `Uninstall` command-line switch.
+- The logic for downloading files from alternative URLs, should the download from the primary URL fail, has been fixed.
+- The alternative URLs for downloading S3PI by Peter Jones, and 7-zip by Igor Pavlov, have been fixed.
+- The auto-completion for the `PatchsetLoadOrder` parameter no longer sets the `$Global:CommandAST` variable.
+- The error logging for patchsets that failed to load has been fixed.
+
+#### Developer-side
+
+- Unpatched resources are now categorised by patchset.
+- `Find-InstanceProperty` and `Find-StaticProperty` now actually differentiate between static and instance properties.
+- Calling `StartWriting` in the context of `Edit-MethodBody` no longer needlessly reassigns the `StartOfIL`, `Instruction`, and `Returns` variables.
+- The `AfterUIScaling` members for patchsets are no longer supported. (They're unused, anyway). This is because they make it difficult for patchsets to act harmoniously.
+- When the patchset definition schema version is at-least 2, the `MakeDefaultConfiguration` patchset member now receives an argument for the `State` parameter.
+- The `Tools/Update-VersionNumber.ps1` script now updates the `AssemblyVersion` numbers in addition to the `AssemblyFileVersion` numbers.
+- The `Tools/Invoke-OpenSesame.ps1` script now correctly resolves relative paths that are supplied as strings.
+- The `InstructionPatching.ReplaceBranchTargetsIn` method now updates the branch targets of `switch` statements.
+
 ### Version 1.3.3
 
 #### User-facing
