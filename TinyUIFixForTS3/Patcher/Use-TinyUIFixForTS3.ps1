@@ -4037,7 +4037,7 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 }
 
 
-function Read-AvailablePatchsets ($From = (Join-Path $PSScriptRoot Patchsets), $MinimumSchemaVersion = 1, $MaximumSchemaVersion = 1)
+function Read-AvailablePatchsets ($From = (Join-Path $PSScriptRoot Patchsets), $MinimumSchemaVersion = 1, $MaximumSchemaVersion = 2)
 {
 	$PatchsetsPath = $From
 	$PatchsetsByID = [Collections.Generic.Dictionary[String, TinyUIFixForTS3PatchsetDefinition]]::new()
