@@ -4262,7 +4262,15 @@ function Initialize-Patchsets ($Patchsets, $State)
 				($State.Configuration[$Patchset.Definition.ID] = [Ordered] @{}),
 				$(
 					$State.Logger.CurrentPatchset = $Patchset
-					& $Patchset.Instance.MakeDefaultConfiguration -Self $Patchset.Instance
+
+					if ($Patchset.Definition.PatchsetDefinitionSchemaVersion -eq 1)
+					{
+						& $Patchset.Instance.MakeDefaultConfiguration -Self $Patchset.Instance
+					}
+					else
+					{
+						& $Patchset.Instance.MakeDefaultConfiguration -Self $Patchset.Instance -State $State
+					}
 				)
 			) > $Null
 		}
