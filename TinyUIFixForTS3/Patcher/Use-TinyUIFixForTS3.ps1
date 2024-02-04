@@ -4529,9 +4529,18 @@ function Use-FileWhatIsDownloadedIfNecessary ($FileDescription, $DestinationDire
 				$ExtraWebRequestArguments.UserAgent = $UserAgent
 			}
 
-			Invoke-WebRequest -UseBasicParsing -Uri $ActualURL -OutFile $DestinationPath -ErrorAction Continue @ExtraWebRequestArguments
+			$DownloadSucceeded = try
+			{
+				Invoke-WebRequest -UseBasicParsing -Uri $ActualURL -OutFile $DestinationPath -ErrorAction Continue @ExtraWebRequestArguments > $Null
+				$?
+			}
+			catch
+			{
+				Write-Error (& $FormatError $_) -ErrorAction Continue
+				$False
+			}
 
-			if ($?)
+			if ($DownloadSucceeded)
 			{
 				$DownloadedFile = Get-Item -LiteralPath $DestinationPath -ErrorAction Stop
 				$Fingerprint = $FileDescription.Fingerprint
