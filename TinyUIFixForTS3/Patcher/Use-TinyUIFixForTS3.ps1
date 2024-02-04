@@ -80,6 +80,9 @@ Param (
 			[UInt16] $ConfiguratorPort,
 
 	[Parameter()]
+			[Switch] $Prefer32BitMacOSVersion,
+
+	[Parameter()]
 			$InstallationPlatform,
 
 	[Parameter()]
@@ -90,6 +93,9 @@ Param (
 
 	[Parameter()]
 			$OverrideSims3UserDataPath,
+
+	[Parameter()]
+			$OverrideSims3GamePackPaths,
 
 	[Parameter()]
 			$OutputUnpackedAssemblyDirectoryPath = $Null,
@@ -202,57 +208,384 @@ $FormatError = `
 }
 
 
-function Get-ExpectedSims3Paths
+$INILineRegex = [RegEx]::new('^(?:(?<Section>\s*\[(?<SectionName>[^\];]*)\]\s*)|(?<Entry>)\s*(?<EntryKey>[^=;]+?)\s*=\s*(?<EntryValue>[^;]*?)\s*|\s*)?(?<Comment>;(?<CommentText>.*))?$', [Text.RegularExpressions.RegexOptions]::Compiled)
+
+function Get-ValuesFromINI ($INILines)
 {
-	$Result = if ($Script:IsWindows)
+	$Sections = [Ordered] @{[String]::Empty = ($Section = [Ordered] @{})}
+
+	$Lines = $INILines.GetEnumerator()
+
+	while ($Lines.MoveNext())
 	{
-		[TinyUIFixPSForTS3]::WriteLineQuickly('Trying to find file-paths for your installation of The Sims 3.')
+		$Match = $INILineRegex.Match($Lines.Current)
 
-		[TinyUIFixPSForTS3]::UseDisposable(
-			{[Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry32)},
+		if ($Match.Success)
+		{
+			if (($Group = $Match.Groups['SectionName']).Success)
 			{
-				Param ($Registry)
+				$Section = $Sections[$Group.Value]
 
-				[Ordered] @{
-					Sims3Path = $(if (($Key = $Registry.OpenSubKey('SOFTWARE\Sims\The Sims 3'))) {$Key.GetValue('Install Dir')})
-					S3PEPath = $(if (($Key = $Registry.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\s3pe'))) {$Key.GetValue('InstallLocation')})
-					Sims3UserDataPath = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) 'Electronic Arts/The Sims 3'
+				if ($Null -eq $Section)
+				{
+					$Sections[$Group.Value] = ($Section = [Ordered] @{})
 				}
 			}
-		)
+			elseif (($Group = $Match.Groups['EntryKey']).Success)
+			{
+				$Key = $Group.Value
+
+				if (-not $Section.Contains($Key))
+				{
+					$Group = $Match.Groups['EntryValue']
+
+					$Section[$Key] = $Group.Value
+				}
+			}
+		}
 	}
-	elseif ($Script:IsMacOS)
+
+	$Sections
+}
+
+
+enum TinyUIFixForTS3Sims3InstallationType
+{
+	Windows
+	MacOS32Bit
+	MacOS64Bit
+	OtherOperatingSystems
+}
+
+
+function Get-Sims3InstallationStateOnWindows ($OverrideSims3Path, $OverrideSims3UserDataPath, $OverrideSims3GamePackPaths)
+{
+	$RegistryData = [TinyUIFixPSForTS3]::UseDisposable(
+		{[Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry32)},
+		{
+			Param ($Registry)
+
+			@{
+				Sims3 = $(
+					$BaseGame = [TinyUIFixPSForTS3]::UseDisposable(
+						{$Registry.OpenSubKey('SOFTWARE\Sims\The Sims 3')},
+						{
+							Param ($Key)
+
+							if ($Null -ne $Key)
+							{
+								[PSCustomObject] @{
+									Path = if ($Null -eq $OverrideSims3Path)
+									{
+										$Key.GetValue('Install Dir')
+									}
+									else
+									{
+										([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3Path)).FullName
+									}
+									Locale = $Key.GetValue('Locale')
+								}
+							}
+						}
+					)
+
+					$GamePacksInRegistry = foreach ($Expansion in '70s 80s & 90s Stuff', 'Ambitions', 'Diesel Stuff', 'Fast Lane Stuff', 'Generations', 'High-End Loft Stuff', 'Into The Future', 'Island Paradise', 'Katy Perry Sweet Treats', 'Late Night', 'Master Suite Stuff', 'Movie Stuff', 'Outdoor Living Stuff', 'Pets', 'Seasons', 'Showtime', 'Supernatural', 'Town Life Stuff', 'University Life', 'World Adventures')
+					{
+						$Found = [TinyUIFixPSForTS3]::UseDisposable(
+							{$Registry.OpenSubKey("SOFTWARE\Sims\The Sims 3 $Expansion")},
+							{Param ($Key) if ($Null -ne $Key) {[PSCustomObject] @{Path = $Key.GetValue('Install Dir'); Locale = $Key.GetValue('Locale')}}}
+						)
+						if ($Null -ne $Found) {$Found}
+					}
+
+					$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
+					{
+						$GamePacksInRegistry
+					}
+					else
+					{
+						$GamePacksInRegistryByPath = [TinyUIFixPSForTS3]::IndexBy(
+							$GamePacksInRegistry.Where{$_.Path},
+							{([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($_.Path)).FullName}
+						)
+
+						foreach ($Path in $OverrideSims3GamePackPaths)
+						{
+							$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+
+							if ($Directory.Exists)
+							{
+								$Locale = if ($RegistryEntry = $GamePacksInRegistryByPath[$Directory.FullName])
+								{
+									$RegistryEntry.Locale
+								}
+
+								[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							}
+						}
+					}
+
+					[PSCustomObject] @{BaseGame = $BaseGame; GamePacks = $GamePacks}
+				)
+			}
+		}
+	)
+
+	$UserDataPath = if ($Null -eq $OverrideSims3UserDataPath)
 	{
-		[TinyUIFixPSForTS3]::WriteLineQuickly('Trying to find file-paths for your installation of The Sims 3.')
+		$Sims3UserDataPathBase = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) 'Electronic Arts'
 
-		$Sims3Path = @(
-			(Join-Path $Global:HOME 'Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app'),
-			(Join-Path $Global:HOME 'Applications/The Sims 3.app'),
-			'/Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app',
-			'/Applications/The Sims 3.app'
-		).Where({Test-Path -LiteralPath $_}, 'First')[0]
+		$BaseGameLocale = if ($Null -ne $RegistryData.Sims3.BaseGame.Locale) {[TinyUIFixPSForTS3]::Sims3LocalesByID[$RegistryData.Sims3.BaseGame.Locale]}
+		if ($Null -eq $BaseGameLocale) {$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID['en-US']}
 
-		[Ordered] @{
-			Sims3Path = if ($Null -ne $Sims3Path) {$Sims3Path} else {'/Applications/The Sims 3.app'}
-			Sims3UserDataPath = Join-Path $Global:HOME 'Documents/Electronic Arts/The Sims 3'
+		$Path = Join-Path $Sims3UserDataPathBase $BaseGameLocale.UserDataDirectoryName
+		if (-not (Test-Path -PathType Container -LiteralPath $Path)) {$Path = Join-Path $Sims3UserDataPathBase 'The Sims 3'}
+		$Path
+	}
+	else
+	{
+		([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3UserDataPath)).FullName
+	}
+
+	[PSCustomObject] @{
+		Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
+		BaseGame = $RegistryData.Sims3.BaseGame
+		Sims3UserDataPath = $UserDataPath
+		GamePacks = $RegistryData.Sims3.GamePacks
+	}
+}
+
+
+function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3UserDataPath, $OverrideSims3GamePackPaths)
+{
+	$PossibleSims3Paths = if ($Null -eq $OverrideSims3Path)
+	{
+		Join-Path $Global:HOME 'Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app'
+		Join-Path $Global:HOME 'Applications/The Sims 3.app/Contents/Resources/The Sims 3.app'
+		Join-Path $Global:HOME 'Applications/The Sims 3.app'
+		'/Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app'
+		'/Applications/The Sims 3.app/Contents/Resources/The Sims 3.app'
+		'/Applications/The Sims 3.app'
+	}
+	else
+	{
+		([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3Path)).FullName
+	}
+
+	$32BitVersion = $Null
+	$64BitVersion = $Null
+
+	$GetUserDataPathForInstallation = if ($Null -eq $OverrideSims3UserDataPath)
+	{
+		{
+			Param ($Installation)
+
+			$Sims3UserDataPathBase = Join-Path $Global:HOME 'Documents/Electronic Arts'
+
+			$BaseGameLocale = if ($Null -ne $Installation.BaseGame.Locale) {[TinyUIFixPSForTS3]::Sims3LocalesByID[$Installation.BaseGame.Locale]}
+			if ($Null -eq $BaseGameLocale) {$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID['en-US']}
+
+			$Path = Join-Path $Sims3UserDataPathBase $BaseGameLocale.UserDataDirectoryName
+			if (-not (Test-Path -PathType Container -LiteralPath $Path)) {$Path = Join-Path $Sims3UserDataPathBase 'The Sims 3'}
+			$Path
 		}
 	}
 	else
 	{
-		[Ordered] @{}
+		{Param ($Installation) ([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3UserDataPath)).FullName}
 	}
 
-	if ($Null -ne $OverrideSims3Path)
+	foreach ($Path in $PossibleSims3Paths)
 	{
-		$Result.Sims3Path = $OverrideSims3Path
+		if (-not (Test-Path -LiteralPath $Path))
+		{
+			continue
+		}
+
+		$TransgamingPath = Join-Path $Path Contents/Resources/transgaming
+
+		if (Test-Path -PathType Container -LiteralPath $TransgamingPath)
+		{
+			if ($Null -eq $32BitVersion)
+			{
+				$ElectronicArtsPath = Join-Path $TransgamingPath 'c_drive/Program Files/Electronic Arts'
+				$BaseGamePath = Join-Path $TransgamingPath $ElectronicArtsPath 'The Sims 3'
+				$BaseGameUpdateAlwaysPath = Join-Path $Path Contents/Resources/Preferences/update_always.reg
+
+				$GetLocaleForGamePack = `
+				{
+					Param ($RegFilePath, $Name)
+
+					if (Test-Path -PathType Leaf -LiteralPath $RegFilePath)
+					{
+						$RegLines = Get-Content -LiteralPath $RegFilePath -Encoding UTF8 -ErrorAction Continue
+
+						if ($Null -ne $RegLines)
+						{
+							$RegValues = Get-ValuesFromINI $RegLines
+							$FirstSectionKey = $RegValues.Keys[1]
+
+							Write-Host "FirstSectionKey: $FirstSectionKey; Path: $Path"
+
+							#if ($Null -ne $FirstSectionKey -and $Null -ne ($FirstSection = $RegValues[$FirstSection]))
+							if ($Null -ne ($FirstSection = $RegValues["HKEY_LOCAL_MACHINE\SOFTWARE\Sims\$Name"]))
+							{
+								$Locale = $FirstSection['"Locale"']
+
+								if ($Null -ne $Locale)
+								{
+									# Remove the enclosing quotes.
+									$Locale.Substring(1, $Locale.Length - 2)
+								}
+							}
+						}
+					}
+				}
+
+				$BaseGameLocale = & $GetLocaleForGamePack $BaseGameUpdateAlwaysPath 'The Sims 3'
+
+				$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
+				{
+					foreach ($Expansion in '70s, 80s, & 90s Stuff', 'Ambitions', 'Diesel Stuff', 'Fast Lane Stuff', 'Generations', 'High-End Loft Stuff', 'Into the Future', 'Island Paradise', 'Katy Perry''s Sweet Treats', 'Late Night', 'Master Suite Stuff', 'Movie Stuff', 'Outdoor Living Stuff', 'Pets', 'Seasons', 'Showtime', 'Supernatural', 'Town Life Stuff', 'University Life', 'World Adventures')
+					{
+						$GamePackName = "The Sims 3 $Expansion"
+						$Directory = [IO.DirectoryInfo] (Join-Path $ElectronicArtsPath $GamePackName)
+
+						if ($Directory.Exists)
+						{
+							$UpdateAlwaysPath = Join-Path $Directory.FullName ../../../../../Preferences/update_always.reg
+							$Locale = & $GetLocaleForGamePack $UpdateAlwaysPath $GamePackName
+
+							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+						}
+					}
+				}
+				else
+				{
+					foreach ($GamePackPath in $OverrideSims3GamePackPaths)
+					{
+						$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+
+						if ($Directory.Exists)
+						{
+							$UpdateAlwaysPath = Join-Path $Directory.FullName ../../../../../Preferences/update_always.reg
+							$Locale = & $GetLocaleForGamePack $UpdateAlwaysPath $Directory.Name
+
+							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+						}
+					}
+				}
+
+				$32BitVersion = [PSCustomObject] @{Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS32Bit; BaseGame = [PSCustomObject] @{Path = $BaseGamePath; Locale = $BaseGameLocale}; Sims3UserDataPath = $Null; GamePacks = $GamePacks}
+				$32BitVersion.Sims3UserDataPath = & $GetUserDataPathForInstallation $32BitVersion
+			}
+		}
+		else
+		{
+			if ($Null -eq $64BitVersion)
+			{
+				$InstallerDataPath = Join-Path $Global:HOME 'Library/Application Support/Origin/Installer Data/Sims3_Locale.plist'
+
+				$Locale = if (Test-Path -PathType Leaf -LiteralPath $InstallerDataPath)
+				{
+					$InstallerData = [Xml.XmlDocument]::new()
+					$InstallerData.Load($InstallerDataPath)
+					$InstallerData.SelectSingleNode('/plist/dict/key[text() = "Locale"]/following-sibling::string/text()').Value
+				}
+
+				$BaseGame = [PSCustomObject] @{Path = $Path; Locale = $Locale}
+
+				$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
+				{
+					$GamePacksPath = @(
+						(Join-Path $Global:HOME 'Applications/The Sims 3 Packs'),
+						'Applications/The Sims 3 Packs'
+					).Where({Test-Path -PathType Container -LiteralPath $_}, 'First')[0]
+
+					if ($Null -ne $GamePacksPath)
+					{
+						$NamePattern = [RegEx]::new('^(?:SP0[1-9]|EP(?:0[1-9]|1[0-1]))$', [Text.RegularExpressions.RegexOptions]::Compiled -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+						$InstalledGamePacks = Get-ChildItem -Directory -LiteralPath $GamePacksPath | ? {$_.Name -match $NamePattern}
+
+						$InstalledGamePacks | % {[PSCustomObject] @{Path = $_.FullName; Locale = $Locale}}
+					}
+				}
+				else
+				{
+					foreach ($GamePackPath in $OverrideSims3GamePackPaths)
+					{
+						$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GamePackPath)
+
+						if ($Directory.Exists)
+						{
+							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+						}
+					}
+				}
+
+				$64BitVersion = [PSCustomObject] @{Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit; BaseGame = $BaseGame; Sims3UserDataPath = $Null; GamePacks = $GamePacks}
+				$64BitVersion.Sims3UserDataPath = & $GetUserDataPathForInstallation $64BitVersion
+			}
+		}
+
+		if ($Null -ne $32BitVersion -and $Null -ne $64BitVersion)
+		{
+			break
+		}
 	}
 
-	if ($Null -ne $OverrideSims3UserDataPath)
+	$UserDataPath = if ($Null -eq $OverrideSims3UserDataPath)
 	{
-		$Result.Sims3UserDataPath = $OverrideSims3UserDataPath
+		$Sims3UserDataPathBase = Join-Path $Global:HOME 'Documents/Electronic Arts'
+
+		$BaseGameLocale = if ($Null -ne $RegistryData.Sims3.BaseGame.Locale) {[TinyUIFixPSForTS3]::Sims3LocalesByID[$RegistryData.Sims3.BaseGame.Locale]}
+		if ($Null -eq $BaseGameLocale) {$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID['en-US']}
+
+		$Path = Join-Path $Sims3UserDataPathBase $BaseGameLocale.UserDataDirectoryName
+		if (-not (Test-Path -PathType Container -LiteralPath $Path)) {$Path = Join-Path $Sims3UserDataPathBase 'The Sims 3'}
+		$Path
+	}
+	else
+	{
+		([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3UserDataPath)).FullName
 	}
 
-	[PSCustomObject] $Result
+	[PSCustomObject] @{'32BitVersion' = $32BitVersion; '64BitVersion' = $64BitVersion}
+}
+
+
+function Get-Sims3InstallationStateOnOtherOperatingSystems ($OverrideSims3Path, $OverrideSims3UserDataPath, $OverrideSims3GamePackPaths)
+{
+	[PSCustomObject] @{
+		Type = [TinyUIFixForTS3Sims3InstallationType]::OtherOperatingSystems
+		BaseGame = [PSCustomObject] @{Path = $OverrideSims3Path}
+		Sims3UserDataPath = $OverrideSims3UserDataPath
+		GamePacks = foreach ($Path in $OverrideSims3GamePackPaths)
+		{
+			$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+
+			if ($Directory.Exists)
+			{
+				[PSCustomObject] @{Path = $Directory.FullName}
+			}
+		}
+	}
+}
+
+
+function Get-S3PEPathOnWindows
+{
+	[TinyUIFixPSForTS3]::UseDisposable(
+		{[Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry32)},
+		{
+			Param ($Registry)
+
+			[TinyUIFixPSForTS3]::UseDisposable(
+				{$Registry.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\s3pe')},
+				{Param ($Key) if ($Null -ne $Key) {$Key.GetValue('InstallLocation')}}
+			)
+		}
+	)
 }
 
 
@@ -282,13 +615,13 @@ function Find-DBPFManipulationAssemblies ($DBPFManipulationLibraryPath = $Script
 {
 	$BinariesPath = Join-Path $PSScriptRoot Binaries
 	$DBPFPath = if ($Null -eq $DBPFManipulationLibraryPath) {Join-Path $BinariesPath DBPF} else {$DBPFManipulationLibraryPath}
-	$IsDLL = {$_.Name -match '\.(?:Package|Interfaces|DefaultResource|ScriptResource|WrapperDealer)\.dll$'}
+	$IsDLL = {$_.Name -match '\..+?\.dll$'}
 
 	$Found = Get-ChildItem -LiteralPath $DBPFPath -ErrorAction Ignore | ? $IsDLL
 
-	if ($Found.Count -eq 0 -and $Null -ne $Script:ExpectedSims3Paths.S3PEPath)
+	if ($Found.Count -eq 0 -and $Null -ne $S3PEPath)
 	{
-		$Found = Get-ChildItem -LiteralPath $Script:ExpectedSims3Paths.S3PEPath -ErrorAction Ignore | ? $IsDLL
+		$Found = Get-ChildItem -LiteralPath $S3PEPath -ErrorAction Ignore | ? $IsDLL
 	}
 
 	$Found
@@ -440,6 +773,41 @@ class TinyUIFixPSForTS3
 	static [UInt32] $_XMLTypeID = 0x0333406c
 	static [UInt32] $S3SATypeID = 0x073faa07
 
+	<# This information courtesy of https://modthesims.info/wiki.php?title=Sims_3:Locales #>
+	static [Collections.Generic.Dictionary[Byte, PSCustomObject]] $Sims3LocalesByCode = $(
+		$ByCode = [Collections.Generic.Dictionary[Byte, PSCustomObject]]::new(23)
+		$ByCode[[Byte] 0x00] = [PSCustomObject] @{Code = [Byte] 0x00; ID = 'en-US'; CodeName = 'ENG_US'; FriendlyName = 'American English'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x01] = [PSCustomObject] @{Code = [Byte] 0x01; ID = 'zh-CN'; CodeName = 'CHS_CN'; FriendlyName = 'Chinese (Simplified)'; UserDataDirectoryName = [String]::new([Char[]] (27169, 25311, 20154, 29983, 51))}
+		$ByCode[[Byte] 0x02] = [PSCustomObject] @{Code = [Byte] 0x02; ID = 'zh-TW'; CodeName = 'CHT_CN'; FriendlyName = 'Chinese (Traditional)'; UserDataDirectoryName = [String]::new([Char[]] (27169, 25836, 24066, 27665, 51))}
+		$ByCode[[Byte] 0x03] = [PSCustomObject] @{Code = [Byte] 0x03; ID = 'cs-CZ'; CodeName = 'CZE_CZ'; FriendlyName = 'Czech'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x04] = [PSCustomObject] @{Code = [Byte] 0x04; ID = 'da-DK'; CodeName = 'DAN_DK'; FriendlyName = 'Danish'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x05] = [PSCustomObject] @{Code = [Byte] 0x05; ID = 'nl-NL'; CodeName = 'DUT_NL'; FriendlyName = 'Dutch'; UserDataDirectoryName = 'De Sims 3'}
+		$ByCode[[Byte] 0x06] = [PSCustomObject] @{Code = [Byte] 0x06; ID = 'fi-FI'; CodeName = 'FIN_FI'; FriendlyName = 'Finnish'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x07] = [PSCustomObject] @{Code = [Byte] 0x07; ID = 'fr-FR'; CodeName = 'FRE_FR'; FriendlyName = 'French'; UserDataDirectoryName = 'Les Sims 3'}
+		$ByCode[[Byte] 0x08] = [PSCustomObject] @{Code = [Byte] 0x08; ID = 'de-DE'; CodeName = 'GER_DE'; FriendlyName = 'German'; UserDataDirectoryName = 'Die Sims 3'}
+		$ByCode[[Byte] 0x09] = [PSCustomObject] @{Code = [Byte] 0x09; ID = 'el-GR'; CodeName = 'GRE_GR'; FriendlyName = 'Greek'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x0A] = [PSCustomObject] @{Code = [Byte] 0x0A; ID = 'hu-HU'; CodeName = 'HUN_HU'; FriendlyName = 'Hungarian'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x0B] = [PSCustomObject] @{Code = [Byte] 0x0B; ID = 'it-IT'; CodeName = 'ITA_IT'; FriendlyName = 'Italian'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x0C] = [PSCustomObject] @{Code = [Byte] 0x0C; ID = 'ja-JP'; CodeName = 'JPN_JP'; FriendlyName = 'Japanese'; UserDataDirectoryName = [String]::new([Char[]] (12470, 65381, 12471, 12512, 12474, 65299))}
+		$ByCode[[Byte] 0x0D] = [PSCustomObject] @{Code = [Byte] 0x0D; ID = 'ko-KR'; CodeName = 'KOR_KR'; FriendlyName = 'Korean'; UserDataDirectoryName = [String]::new([Char[]] (49900, 51592, 32, 51))}
+		$ByCode[[Byte] 0x0E] = [PSCustomObject] @{Code = [Byte] 0x0E; ID = 'no-NO'; CodeName = 'NOR_NO'; FriendlyName = 'Norwegian'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x0F] = [PSCustomObject] @{Code = [Byte] 0x0F; ID = 'pl-PL'; CodeName = 'POL_PL'; FriendlyName = 'Polish'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x10] = [PSCustomObject] @{Code = [Byte] 0x10; ID = 'pt-PT'; CodeName = 'POR_PT'; FriendlyName = 'Portuguese'; UserDataDirectoryName = 'Os Sims 3'}
+		$ByCode[[Byte] 0x11] = [PSCustomObject] @{Code = [Byte] 0x11; ID = 'pt-BR'; CodeName = 'POR_BR'; FriendlyName = 'Brazilian Portuguese'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x12] = [PSCustomObject] @{Code = [Byte] 0x12; ID = 'ru-RU'; CodeName = 'RUS_RU'; FriendlyName = 'Russian'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x13] = [PSCustomObject] @{Code = [Byte] 0x13; ID = 'es-ES'; CodeName = 'SPA_ES'; FriendlyName = 'Spanish'; UserDataDirectoryName = 'Los Sims 3'}
+		$ByCode[[Byte] 0x14] = [PSCustomObject] @{Code = [Byte] 0x14; ID = 'es-MX'; CodeName = 'SPA_MX'; FriendlyName = 'Mexican Spanish'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x15] = [PSCustomObject] @{Code = [Byte] 0x15; ID = 'sv-SE'; CodeName = 'SWE_SE'; FriendlyName = 'Swedish'; UserDataDirectoryName = 'The Sims 3'}
+		$ByCode[[Byte] 0x16] = [PSCustomObject] @{Code = [Byte] 0x16; ID = 'th-TH'; CodeName = 'THA_TH'; FriendlyName = 'Thai'; UserDataDirectoryName = [String]::new([Char[]] (3648, 3604, 3629, 3632, 3595, 3636, 3617, 3626, 3660, 32, 51))}
+		$ByCode
+	)
+
+	static [HashTable] $Sims3LocalesByID = $(
+		$ByID = @{}
+		[TinyUIFixPSForTS3]::Sims3LocalesByCode.Values.ForEach{$ByID[$_.ID] = $_}
+		$ByID
+	)
+
 	static [String] $HexResourceKeyRegExPattern = '0x(?<ResourceType>[0-9A-Fa-f]{8})-0x(?<ResourceGroup>[0-9A-Fa-f]{8})-0x(?<Instance>[0-9A-Fa-f]{16})'
 
 	static [RegEx] $GlobSegmentEscapeRegEx = [RegEx]::new('(\*+)|(\?+)|([^\*\?]+)', [Text.RegularExpressions.RegexOptions]::Compiled)
@@ -555,7 +923,7 @@ class TinyUIFixPSForTS3
 
 											if ($Result.ShouldStopScanning)
 											{
-												$DirectoriesNotToScanFrom.Add($SubDirectoryPrefix)
+												$DirectoriesNotToScanFrom.Add($SubDirectoryPrefix) > $Null
 												$ShouldStopScanningInSubDirectories = $True
 											}
 										}
@@ -773,7 +1141,7 @@ class TinyUIFixPSForTS3
 			{
 				if (($_.Attributes -band [IO.FileAttributes]::Directory) -eq 0)
 				{
-					$Files.Add($Prefix + $(if ($Prefix.Length -eq 0) {''} else {'/'}) + $_.Name)
+					$Files.Add($Prefix + $(if ($Prefix.Length -eq 0) {''} else {'/'}) + $_.Name) > $Null
 				}
 				elseif ($Depth -lt $GreatestDepth)
 				{
@@ -920,6 +1288,8 @@ class TinyUIFixPSForTS3
 	{
 		return [ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object][]] $(
 			$Priority = 0
+			# Without this totally redundant assignment, `$Lines.MoveNext()` fails with a `System.Management.Automation.PSInvalidCastException`.
+			$CFGLines = $CFGLines
 			$Lines = $CFGLines.GetEnumerator()
 
 			while ($Lines.MoveNext())
@@ -1235,9 +1605,9 @@ if ($Script:MyInvocation.InvocationName -cne '.' -and $Script:MyInvocation.Line 
 
 if ($Null -eq $DBPFManipulationLibraryPath)
 {
-	if ($Null -eq $Script:ExpectedSims3Paths)
+	$S3PEPath = if ($Script:IsWindows)
 	{
-		$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
+		Get-S3PEPathOnWindows
 	}
 }
 
@@ -1292,6 +1662,7 @@ class TinyUIFixForTS3Patchset
 
 	[Object] $Instance
 	[TinyUIFixForTS3PatchsetDefinition] $Definition
+	[Object] $ResourcesToFind
 
 	TinyUIFixForTS3Patchset ([Object] $Instance, [TinyUIFixForTS3PatchsetDefinition] $Definition)
 	{
@@ -1351,17 +1722,17 @@ function Find-ResourcesAcrossPackages (
 }
 
 
-function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [String] $Sims3UserDataPath, [ScriptBlock] $TransformGameBinResourceCFG, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage, [Switch] $SuppressLogging)
+function Resolve-ResourcePrioritiesForSims3Installation ($InstallationState, [ScriptBlock] $TransformGameBinResourceCFG, [Switch] $IncludeTinyUIFixPackage, [Switch] $SuppressLogging)
 {
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Resolving the resource priorities for the Sims 3 installation at `"$Sims3Path`" with the user-data at `"$Sims3UserDataPath`".")
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Resolving the resource priorities for the Sims 3 installation at `"$($InstallationState.BaseGame.Path)`" with the user-data at `"$($InstallationState.Sims3UserDataPath)`".$([Environment]::NewLine)Additionally, these game-packs are being considered: $($InstallationState.GamePacks.ForEach{'"{0}"' -f $_.Path} -join '; ')")
 
 	$PrioritisedFiles = [Collections.Generic.Dictionary[UInt64, Collections.Generic.IEnumerable[Object]]]::new()
 
-	$ResolveGameSubDirectory = `
+	$ResolveGamePackDirectory = `
 	{
-		Param ($SubPath, $Transform)
+		Param ($Path, $Transform)
 
-		$GameSubDirectory = Get-Item -LiteralPath (Join-Path $Sims3Path $SubPath) -ErrorAction Stop
+		$GameSubDirectory = Get-Item -LiteralPath $Path -ErrorAction Stop
 		$GameSubPath = $GameSubDirectory.FullName
 		$GameSubResourceCFGPath = Join-Path $GameSubDirectory.FullName Resource.cfg
 		$GameSubResourceCFG = [String[]] (Get-Content -LiteralPath $GameSubResourceCFGPath -ErrorAction Stop)
@@ -1383,24 +1754,40 @@ function Resolve-ResourcePrioritiesForSims3Installation ([String] $Sims3Path, [S
 
 		foreach ($Entry in $GameSubPriorities.PrioritisedFiles.GetEnumerator())
 		{
-			$PrioritisedFiles[$Entry.Key] = foreach ($File in $Entry.Value) {[IO.FileInfo] "$GameSubPath/$File"}
+			$PrioritisedFiles[$Entry.Key] = @(foreach ($File in $Entry.Value) {[IO.FileInfo] "$GameSubPath/$File"})
 		}
 
 		$GameSubDirectory
 	}
 
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Checking the game folder at `"$Sims3Path`".")
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Checking the game folder at `"$($InstallationState.BaseGame.Path)`".")
 
-	$GameSharedDirectory = & $ResolveGameSubDirectory $(if ($IsMacOSInstallation) {'Contents/GameData/Shared'} else {'GameData/Shared'})
-	$GameBinDirectory = & $ResolveGameSubDirectory $(if ($IsMacOSInstallation) {'Contents/Resources'} else {'Game/Bin'}) $TransformGameBinResourceCFG
+	$SharedFolderSuffix = if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/GameData/Shared'} else {'GameData/Shared'}
 
-	$ExpectedModsDirectoryPath = Join-Path $Sims3UserDataPath Mods
+	$GameSharedDirectory = & $ResolveGamePackDirectory (Join-Path $InstallationState.BaseGame.Path $SharedFolderSuffix)
+	$GameBinDirectory = & $ResolveGamePackDirectory (Join-Path $InstallationState.BaseGame.Path $(if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources'} else {'Game/Bin'})) $TransformGameBinResourceCFG
+
+	$ResolvedGamePacks = $InstallationState.GamePacks.ForEach{
+		$GamePackPath = Join-Path $_.Path $SharedFolderSuffix
+
+		if (-not (Test-Path -PathType Container -LiteralPath $GamePackPath))
+		{
+			Write-Warning "`"$GamePackPath`" could not be found."
+		}
+		else
+		{
+			[PSCustomObject] @{SharedDirectory = & $ResolveGamePackDirectory $GamePackPath}
+		}
+	}
+
+	$ExpectedModsDirectoryPath = Join-Path $InstallationState.Sims3UserDataPath Mods
 	$ModsDirectory = Get-Item -LiteralPath $ExpectedModsDirectoryPath -ErrorAction Ignore
 	$AllActiveModPackages = [Collections.Generic.List[String]]::new()
 
 	$Result = [PSCustomObject] @{
 		GameBinDirectory = $GameBinDirectory
 		GameSharedDirectory = $GameSharedDirectory
+		GamePacks = $ResolvedGamePacks
 		ModsDirectory = $ModsDirectory
 		PrioritisedFiles = $PrioritisedFiles
 		AllActiveModPackages = $AllActiveModPackages
@@ -3917,21 +4304,22 @@ function Test-PatchsetIsRecommended ($Patchset, $AllActiveModPackages)
 }
 
 
-function New-PatchingState
+function New-PatchingState ($InstallationState)
 {
 	@{
 		Logger = [TinyUIFixForTS3PatchsetLogger]::new()
 		Paths = @{
 			Root = $PSScriptRoot
 		}
+		InstallationState = $InstallationState
 		Configuration = @{}
 	}
 }
 
 
-function Test-Sims3Path ($Sims3Path, [Switch] $IsMacOSInstallation)
+function Test-Sims3Path ($Sims3Path, [TinyUIFixForTS3Sims3InstallationType] $InstallationType)
 {
-	$Null -ne $Sims3Path -and (Test-Path -LiteralPath (Join-Path $Sims3Path $(if ($IsMacOSInstallation) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'})))
+	$Null -ne $Sims3Path -and (Test-Path -LiteralPath (Join-Path $Sims3Path $(if ($InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'})))
 }
 
 
@@ -3941,12 +4329,10 @@ function Test-Sims3UserDataPath ($Sims3UserDataPath)
 }
 
 
-function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ([String] $Sims3Path, [String] $Sims3UserDataPath, [Switch] $IsMacOSInstallation, [Switch] $IncludeTinyUIFixPackage, [Switch] $SuppressLogging)
+function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ($InstallationState, [Switch] $IncludeTinyUIFixPackage, [Switch] $SuppressLogging)
 {
 	Resolve-ResourcePrioritiesForSims3Installation `
-		-Sims3Path $Sims3Path `
-		-Sims3UserDataPath $Sims3UserDataPath `
-		-IsMacOSInstallation:$IsMacOSInstallation `
+		-InstallationState $InstallationState `
 		-IncludeTinyUIFixPackage:$IncludeTinyUIFixPackage `
 		-SuppressLogging:$SuppressLogging `
 		-TransformGameBinResourceCFG `
@@ -3989,9 +4375,9 @@ function Write-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources
 }
 
 
-function Write-PackageForSims3Installation ([String] $Sims3Path, [String] $Sims3UserDataPath, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed, [Switch] $IsMacOSInstallation)
+function Write-PackageForSims3Installation ($InstallationState, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
 {
-	$ResourcesToPatch = Find-ResourcesToPatch (Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Sims3Path $Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation)
+	$ResourcesToPatch = Find-ResourcesToPatch (Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $InstallationState) $State
 
 	Write-PackageWithPatchedResources `
 		-UnpatchedResources $ResourcesToPatch `
@@ -4544,37 +4930,81 @@ try
 	$ShouldReadPatchsets = $ShouldLoadPatchsets -or $ShouldLoadInactivePatchsets -or $GetAvailablePatchsets -or $CheckingIfPatchsetsAreRecommended
 
 
+	$InstallationState = $Null
+
+
 	if ($FindingSims3Paths)
 	{
-		if ($Null -eq $Script:ExpectedSims3Paths)
+		[TinyUIFixPSForTS3]::WriteLineQuickly('Trying to find your installation of The Sims 3.')
+
+		$InstallationState = if ($Script:IsWindows)
 		{
-			$Script:ExpectedSims3Paths = Get-ExpectedSims3Paths
+			Get-Sims3InstallationStateOnWindows
+		}
+		elseif ($Script:IsMacOS)
+		{
+			$State = Get-Sims3InstallationStateOnMacOS
+
+			if ($Null -ne $State.'64BitVersion' -and $Null -ne $State.'32BitVersion')
+			{
+				if (-not $NonInteractive)
+				{
+					if ($Host.UI.PromptForChoice($Null, 'An installation was found for both the 64-bit version and 32-bit version of The Sims 3. Which version would you like to scale the UI of?', ('&Sixty-four bit', '&Thirty-two bit'), [Int32] [Bool] $Prefer32BitMacOSVersion) -eq 0)
+					{
+						$State.'64BitVersion'
+					}
+					else
+					{
+						$State.'32BitVersion'
+					}
+				}
+				elseif ($Prefer32BitMacOSVersion)
+				{
+					$State.'32BitVersion'
+				}
+				else
+				{
+					$State.'64BitVersion'
+				}
+			}
+			elseif ($Null -ne $State.'64BitVersion')
+			{
+				$State.'64BitVersion'
+			}
+			elseif ($Null -ne $State.'32BitVersion')
+			{
+				$State.'32BitVersion'
+			}
+		}
+		else
+		{
+			Get-Sims3InstallationStateOnOtherOperatingSystems
 		}
 
 		if (-not $NonInteractive)
 		{
-			if (-not (Test-Sims3Path $Script:ExpectedSims3Paths.Sims3Path -IsMacOSInstallation:$IsMacOSInstallation))
+			if (-not (Test-Sims3Path $InstallationState.BaseGame.Path $InstallationState.Type))
 			{
-				$Script:ExpectedSims3Paths.Sims3Path = Read-Host 'The file-path of your installation of The Sims 3 could not be automatically found, please supply the file-path of your Sims 3 installation. (It is usually a folder named "The Sims 3")'
+				$InstallationState.BaseGame.Path = Read-Host 'The file-path of your installation of The Sims 3 could not be automatically found, please supply the file-path of your Sims 3 installation. (It is usually a folder named "The Sims 3")'
 
-				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3Path))
+				if (-not (Test-Sims3Path $InstallationState.BaseGame.Path $InstallationState.Type))
 				{
-					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3Path $(if ($IsMacOSInstallation) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
+					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $InstallationState.BaseGame.Path $(if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
 				}
 			}
 
-			if (-not (Test-Sims3UserDataPath $Script:ExpectedSims3Paths.Sims3UserDataPath))
+			if (-not (Test-Sims3UserDataPath $InstallationState.Sims3UserDataPath))
 			{
-				$Script:ExpectedSims3Paths.Sims3UserDataPath = Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)'
+				$InstallationState.Sims3UserDataPath = Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)'
 
-				if (-not (Test-Path $Script:ExpectedSims3Paths.Sims3UserDataPath))
+				if (-not (Test-Sims3UserDataPath $InstallationState.Sims3UserDataPath))
 				{
-					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Options.ini)`" file could be found at that path."
+					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $InstallationState.Sims3UserDataPath Options.ini)`" file could be found at that path."
 				}
 			}
 		}
 
-		$CCMagicSettingsFile = Get-Item -LiteralPath (Get-CCMagicSettingsPath (Get-ExpectedCCMagicPath $Script:ExpectedSims3Paths.Sims3UserDataPath)) -ErrorAction Ignore
+		$CCMagicSettingsFile = Get-Item -LiteralPath (Get-CCMagicSettingsPath (Get-ExpectedCCMagicPath $InstallationState.Sims3UserDataPath)) -ErrorAction Ignore
 
 		if (-not ($CCMagicSettingsFile -is [IO.FileInfo]))
 		{
@@ -4594,7 +5024,7 @@ try
 		while (
 			Test-Path -LiteralPath (
 				$WriteTestPath = (
-					Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath "tiny-ui-fix-for-ts3-write-test-$([DateTime]::UtcNow.Ticks)-$($PowerShellProcess.Id)"
+					Join-Path $InstallationState.Sims3UserDataPath "tiny-ui-fix-for-ts3-write-test-$([DateTime]::UtcNow.Ticks)-$($PowerShellProcess.Id)"
 				)
 			)
 		)
@@ -4809,24 +5239,23 @@ try
 	{
 		if ($InstallationPlatform -eq 'macOS')
 		{
-			$IsMacOSInstallation = $True
+			$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit
+		}
+		elseif ($InstallationPlatform -eq 'macOS32Bit')
+		{
+			$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS32Bit
 		}
 		elseif ($InstallationPlatform -eq 'Windows')
 		{
-			$IsMacOSInstallation = $False
+			$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
 		}
 		else
 		{
-			Write-Error "`"$InstallationPlatform`" is not a valid value for the InstallationPlatform parameter. It must be either `"Windows`" or `"macOS`"." -ErrorAction Stop
+			Write-Error "`"$InstallationPlatform`" is not a valid value for the InstallationPlatform parameter. It must be either `"Windows`", `"macOS`", or `"macOS32Bit`"." -ErrorAction Stop
 		}
 	}
-	else
-	{
-		$IsMacOSInstallation = $IsMacOS
-	}
 
-
-	$PatchingState = New-PatchingState
+	$PatchingState = New-PatchingState $InstallationState
 
 
 	if ($ShouldReadPatchsets)
@@ -4877,7 +5306,7 @@ try
 				[TinyUIFixPSForTS3]::WriteLineQuickly("Initialising the `"$($Patchset.Definition.ID)`" patchset after loading it.")
 
 				$State.Logger.CurrentPatchset = $Patchset
-				& $Patchset.Instance.InitialiseAfterLoading -Self $Patchset.Instance -State (New-PatchingState) > $Null
+				& $Patchset.Instance.InitialiseAfterLoading -Self $Patchset.Instance -State (New-PatchingState $InstallationState) > $Null
 			}
 		}
 	}
@@ -4900,7 +5329,7 @@ try
 
 	if ($ResolvingResourcePriorities)
 	{
-		$ResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation
+		$ResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $InstallationState
 	}
 
 
@@ -4944,6 +5373,7 @@ try
 		$ResolvedResourcesPrioritiesOutput = [PSCustomObject] @{
 			GameBinDirectory = $ResolvedResourcesPriorities.GameBinDirectory
 			GameSharedDirectory = $ResolvedResourcesPriorities.GameSharedDirectory
+			GamePacks = $ResolvedResourcesPriorities.GamePacks
 			ModsDirectory = $ResolvedResourcesPriorities.ModsDirectory
 			FilesByPackedPriority = $ResolvedResourcesPriorities.PrioritisedFiles
 			FilesWithUnpackedPriorities = $FilesWithUnpackedPriorities
@@ -5035,7 +5465,7 @@ try
 			[TinyUIFixPSForTS3]::RecursivelyMergeIntoDictionary($PatchsetConfiguration, $ConfiguratorInvocation.RequestBody.patchsetConfiguration) > $Null
 
 			$LoadOrder = Resolve-PatchsetLoadOrder $ConfiguratorLoadOrder $AvailablePatchsets.PatchsetsByID
-			$PatchingState = New-PatchingState
+			$PatchingState = New-PatchingState $InstallationState
 			$LoadedPatchsets = Load-Patchsets $AvailablePatchsets -State $PatchingState -LoadOrder $LoadOrder -ConfigurationObject $PatchsetConfiguration
 		}
 	}
@@ -5141,7 +5571,7 @@ try
 	{
 		if (-not $NonInteractive -or $ChangeResourceCFGToLoadTinyUIFixLast -or $AddTinyUIFixDirectivesToCCMagicSettingsFile)
 		{
-			$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $Script:ExpectedSims3Paths.Sims3Path $Script:ExpectedSims3Paths.Sims3UserDataPath -IsMacOSInstallation:$IsMacOSInstallation -IncludeTinyUIFixPackage -SuppressLogging
+			$FinalResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $InstallationState -IncludeTinyUIFixPackage -SuppressLogging
 			$PrioritiesInReverse = $FinalResolvedResourcesPriorities.PrioritisedFiles.Keys | Sort-Object -Descending
 			$TinyUIFixPackagePath = $UltimateResult.GeneratedPackage.FullName
 			$TinyUIFixPackagePriority = $Null
