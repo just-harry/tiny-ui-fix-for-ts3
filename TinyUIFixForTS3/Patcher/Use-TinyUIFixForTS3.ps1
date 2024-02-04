@@ -3100,35 +3100,6 @@ function Apply-PatchesToResources (
 			)
 		}
 	}
-
-
-	foreach ($Patchset in $Patchsets)
-	{
-		if ($Null -ne $Patchset.Instance.AfterUIScaling)
-		{
-			if ($Patchset.Instance.AfterUIScaling.ApplyPatch -is [ScriptBlock])
-			{
-				[TinyUIFixPSForTS3]::WriteLineQuickly("Applying the AfterUIScaling patch from the `"$($Patchset.Definition.ID)`" patchset.")
-
-				$State.Logger.CurrentPatchset = $Patchset
-				& $Patchset.Instance.AfterUIScaling.ApplyPatch -Self $Patchset.Instance -State $State > $Null
-			}
-		}
-	}
-
-	foreach ($Patchset in $PatchsetsRetro)
-	{
-		if ($Null -ne $Patchset.Instance.AfterUIScaling)
-		{
-			if ($Patchset.Instance.AfterUIScaling.ApplyPatchRetro -is [ScriptBlock])
-			{
-				[TinyUIFixPSForTS3]::WriteLineQuickly("Applying the AfterUIScaling retro-patch from the `"$($Patchset.Definition.ID)`" patchset.")
-
-				$State.Logger.CurrentPatchset = $Patchset
-				& $Patchset.Instance.AfterUIScaling.ApplyPatchRetro -Self $Patchset.Instance -State $State > $Null
-			}
-		}
-	}
 }
 
 
