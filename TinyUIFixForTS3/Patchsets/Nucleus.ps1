@@ -73,6 +73,13 @@ $PatchsetDefinitionSchemaVersion = 1
 		$Self.EffectiveTextScale = if ($Null -ne $State.Configuration.Nucleus.TextScale) {$State.Configuration.Nucleus.TextScale} else {$State.Configuration.Nucleus.UIScale}
 	}
 
+	RegisterResourcesToFind = `
+	{
+		Param ($Self, $State)
+
+		@{ByResourceType = [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::S3SATypeID, [TinyUIFixPSForTS3]::_CSSTypeID}
+	}
+
 	DuringUIScaling = @{
 		ReplaceResources = `
 		{

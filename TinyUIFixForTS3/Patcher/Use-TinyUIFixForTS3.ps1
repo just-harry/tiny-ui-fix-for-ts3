@@ -1839,25 +1839,50 @@ function Resolve-ResourcePrioritiesForSims3Installation ($InstallationState, [Sc
 }
 
 
-function Find-ResourcesToPatch ([PSCustomObject] $ResolvedResourcesPriorities)
+function Find-ResourcesToPatch ([PSCustomObject] $ResolvedResourcesPriorities, $State)
 {
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Finding UI resources to scale across $(($ResolvedResourcesPriorities.PrioritisedFiles.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum) package files.")
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Finding resources across $(($ResolvedResourcesPriorities.PrioritisedFiles.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum) package files.")
+
+	$ResourcesToPatchByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new()
+	$ResourcesToPatchByResourceType = [Collections.Generic.List[UInt32]]::new(4)
+	$ResourcesToPatchByCondition = [Collections.Generic.List[ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]]]]::new(4)
+
+	foreach ($Patchset in $State.Patchsets.Values)
+	{
+		if ($Patchset.Instance.RegisterResourcesToFind -is [ScriptBlock])
+		{
+			[TinyUIFixPSForTS3]::WriteLineQuickly("Registering the resources to find for the `"$($Patchset.Definition.ID)`" patchset.")
+
+			$State.Logger.CurrentPatchset = $Patchset
+			$ResourcesToFind = & $Patchset.Instance.RegisterResourcesToFind -Self $Patchset.Instance -State $State
+
+			$R = $ResourcesToFind.ByKey; if ($Null -ne $R) {$ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]] $R} else {$ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new()}
+			$R = $ResourcesToFind.ByResourceType; if ($Null -ne $R) {$ByResourceType = [UInt32[]] $R} else {$ByResourceType = [UInt32[]]::new(0)}
+			$R = $ResourcesToFind.ByCondition; if ($Null -ne $R) {$ByCondition = [ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]][]] $R} else {$ByCondition = [ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]][]]::new(0)}
+
+			$Patchset.ResourcesToFind = [PSCustomObject] @{ByKey = $ByKey; ByResourceType = $ByResourceType; ByCondition = $ByCondition}
+
+			$ResourcesToPatchByKey.UnionWith($Patchset.ResourcesToFind.ByKey)
+			$ResourcesToPatchByResourceType.AddRange([UInt32[]] $Patchset.ResourcesToFind.ByResourceType.Where{-not $ResourcesToPatchByResourceType.Contains($_)})
+			$ResourcesToPatchByCondition.AddRange($Patchset.ResourcesToFind.ByCondition)
+		}
+	}
 
 	Find-ResourcesAcrossPackages `
 		-PrioritisedFiles $ResolvedResourcesPriorities.PrioritisedFiles `
-		-ByKey ([Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new()) `
-		-ByResourceType @([TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::S3SATypeID, [TinyUIFixPSForTS3]::_CSSTypeID) `
-		-ByCondition @()
+		-ByKey $ResourcesToPatchByKey `
+		-ByResourceType $ResourcesToPatchByResourceType `
+		-ByCondition $ResourcesToPatchByCondition
 }
 
 
 function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 {
-	$ResourcesByPackage = [Collections.Generic.Dictionary[String, Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]]::new()
+	$ResourcesByPackage = [Collections.Generic.Dictionary[String, PSCustomObject]]::new()
 
 	$CategoriseResources = `
 	{
-		Param ($Category, $ResourcesByKey)
+		Param ($Category, $ResourcesByKey, $ParentCategory)
 
 		foreach ($Entry in $ResourcesByKey.GetEnumerator())
 		{
@@ -1865,11 +1890,34 @@ function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 
 			if ($Null -eq $Resources)
 			{
-				$Resources = [Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]::new()
+				$Resources = [PSCustomObject] @{
+					All = [Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]::new(0)
+					ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+					ByResourceType = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
+					ByCondition = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
+				}
 				$ResourcesByPackage[$Entry.Value] = $Resources
 			}
 
-			$Resources[$Entry.Key] = $Category
+			$Resources.All[$Entry.Key] = $Category
+
+			if ($Null -eq $ParentCategory)
+			{
+				$Resources.$Category.Add($Entry.Key) > $Null
+			}
+			else
+			{
+				$ByParentCategory = $Resources.$ParentCategory
+				$ByCategory = $ByParentCategory[$Category]
+
+				if ($Null -eq $ByCategory)
+				{
+					$ByCategory = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+					$ByParentCategory[$Category] = $ByCategory
+				}
+
+				$ByCategory.Add($Entry.Key) > $Null
+			}
 		}
 	}
 
@@ -1883,7 +1931,7 @@ function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 
 	foreach ($ResourceType in $ResourcesToPatch.ByResourceType.GetEnumerator())
 	{
-		& $CategoriseResources $ResourceType.Key $ResourceType.Value
+		& $CategoriseResources $ResourceType.Key $ResourceType.Value ByResourceType
 	}
 
 	$CategorisedCount = ($ResourcesToPatch.ByCondition.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
@@ -1891,7 +1939,7 @@ function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 
 	foreach ($Condition in $ResourcesToPatch.ByCondition.GetEnumerator())
 	{
-		& $CategoriseResources $Condition.Key $Condition.Value
+		& $CategoriseResources $Condition.Key $Condition.Value ByCondition
 	}
 
 	$ResourcesByPackage
@@ -2439,6 +2487,80 @@ function Apply-PatchesToResources (
 	[Object[]]::Reverse($PatchsetsRetro)
 
 
+	$State.UnpatchedResourcesByPatchset = ($UnpatchedResourcesByPatchset = [Ordered] @{})
+
+	foreach ($Patchset in $Patchsets)
+	{
+		$UnpatchedResourcesByPatchset[$Patchset.Definition.ID] = [PSCustomObject] @{
+			ByPackage = [Collections.Generic.Dictionary[String, PSCustomObject]]::new($UnpatchedResourcesByPackage.Count)
+		}
+	}
+
+	[TinyUIFixPSForTS3]::WriteLineQuickly('Categorising resource by patchset.')
+
+	foreach ($Entry in $UnpatchedResourcesByPackage.GetEnumerator())
+	{
+		foreach ($Patchset in $Patchsets)
+		{
+			$ResourcesByPackage = $UnpatchedResourcesByPatchset[$Patchset.Definition.ID]
+
+			$ResourcesForPackage = [PSCustomObject] @{
+				All = [Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]::new(0)
+				ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+				ByResourceType = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
+				ByCondition = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
+			}
+
+			$ResourcesByPackage.ByPackage[$Entry.Key] = $ResourcesForPackage
+
+			foreach ($Key in $Entry.Value.ByKey.Keys)
+			{
+				if ($Patchset.ResourcesToFind.ByKey.Contains($Key))
+				{
+					$ResourcesForPackage.ByKey.Add($Key) > $Null
+					$ResourcesForPackage.All[$Key] = 'ByKey'
+				}
+			}
+
+			foreach ($ResourceType in $Patchset.ResourcesToFind.ByResourceType)
+			{
+				$ResourcesByResourceType = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+				$ResourcesForPackage.ByResourceType[$ResourceType] = $ResourcesByResourceType
+
+				$FoundByResourceType = $Entry.Value.ByResourceType[$ResourceType]
+
+				if ($Null -ne $FoundByResourceType)
+				{
+					$ResourcesByResourceType.UnionWith($FoundByResourceType)
+
+					foreach ($Key in $FoundByResourceType.GetEnumerator())
+					{
+						$ResourcesForPackage.All[$Key] = $ResourceType
+					}
+				}
+			}
+
+			foreach ($Condition in $Patchset.ResourcesToFind.ByCondition)
+			{
+				$ResourcesByCondition = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+				$ResourcesForPackage.ByCondition[$Condition.Item1] = $ResourcesByCondition
+
+				$FoundByCondition = $Entry.Value.ByCondition[$Condition.Item1]
+
+				if ($Null -ne $FoundByCondition)
+				{
+					$ResourcesByCondition.UnionWith($FoundByCondition)
+
+					foreach ($Key in $FoundByCondition.GetEnumerator())
+					{
+						$ResourcesForPackage.All[$Key] = $Condition.Item1
+					}
+				}
+			}
+		}
+	}
+
+
 	foreach ($Patchset in $Patchsets)
 	{
 		if ($Patchset.Instance.InitialiseBeforePatching -is [ScriptBlock])
@@ -2699,7 +2821,7 @@ function Apply-PatchesToResources (
 
 	$Resources = [Collections.Generic.List[ValueTuple[Object, s3pi.Interfaces.IResourceIndexEntry]]]::new()
 
-	foreach ($Entry in $ResourcesByPackage.GetEnumerator())
+	foreach ($Entry in $UnpatchedResourcesByPatchset.Nucleus.ByPackage.GetEnumerator())
 	{
 		[TinyUIFixPSForTS3]::UseDisposable(
 			{[s3pi.Package.Package]::OpenPackage(1, $Entry.Key)},
@@ -2712,7 +2834,7 @@ function Apply-PatchesToResources (
 
 				foreach ($IndexEntry in $Package.GetResourceList.GetEnumerator())
 				{
-					foreach ($CategorisedKey in $Entry.Value.GetEnumerator())
+					foreach ($CategorisedKey in $Entry.Value.All.GetEnumerator())
 					{
 						if (
 							     $CategorisedKey.Key.Instance -eq $IndexEntry.Instance `
@@ -2722,7 +2844,7 @@ function Apply-PatchesToResources (
 						{
 							$Resources.Add([ValueTuple[Object, s3pi.Interfaces.IResourceIndexEntry]]::new($CategorisedKey.Value, $IndexEntry))
 
-							$Entry.Value.Remove($CategorisedKey.Key)
+							$Entry.Value.All.Remove($CategorisedKey.Key)
 
 							break
 						}
@@ -5553,7 +5675,7 @@ try
 	$GeneratedPackageFilePath = Join-Path $TinyUIFixModFolderPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
 
 
-	$ResourcesToPatch = Find-ResourcesToPatch $ResolvedResourcesPriorities
+	$ResourcesToPatch = Find-ResourcesToPatch $ResolvedResourcesPriorities $PatchingState
 	$ResourcesToPatchByPackage = Group-ResourcesToPatchByPackage $ResourcesToPatch
 
 	Write-PackageWithPatchedResources `
