@@ -4630,7 +4630,7 @@ function Read-YesOrNo ($Prompt)
 }
 
 
-function Invoke-Configurator ($DesiredPort, $PageContents, $State)
+function Invoke-Configurator ($DesiredPort, $PageContents, $State, $Actions)
 {
 	$ConfiguratorInvocationResult = $Null
 	$ShouldExitAfterConfigurator = $False
@@ -4874,6 +4874,16 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State)
 					Send-Response
 
 					break
+				}
+				elseif ($Context.Request.HttpMethod -eq 'POST' -and $Context.Request.Url.AbsolutePath -eq '/uninstall')
+				{
+					& $Actions.Uninstall
+
+					$Message = 'The Tiny UI Fix has been uninstalled.'
+
+					Start-JSONResponse (ConvertTo-Json @{Message = $Message})
+
+					Send-Response
 				}
 				elseif ($Context.Request.HttpMethod -eq 'POST' -and $Context.Request.Url.AbsolutePath -eq '/cancel')
 				{
@@ -5585,10 +5595,7 @@ try
 				AvailablePatchsets = $AvailablePatchsetsForConfigurator
 			} `
 			-Actions @{
-				GeneratePackage = `
-				{
-					@{StopListening = $True; Result = 'abc'}
-				}
+				Uninstall = $UninstallTinyUIFix
 			}
 
 		if (-not $ConfiguratorInvocation.Cancelled)

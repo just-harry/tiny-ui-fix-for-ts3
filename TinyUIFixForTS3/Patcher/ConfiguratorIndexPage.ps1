@@ -447,6 +447,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				const exportLoadOrderButton = configurator.querySelector('[data-export-load-order-button]');
 				const importLoadOrderButton = configurator.querySelector('[data-import-load-order-button]');
 				const checkForUpdatesButton = configurator.querySelector('[data-check-for-updates-button]');
+				const uninstallButton = configurator.querySelector('[data-uninstall-button]');
 				const cancelConfiguratorButton = configurator.querySelector('[data-cancel-configurator-button]');
 				const importExportZone = configurator.querySelector('[data-import-export-zone]');
 				const uiScaleInput = configurator.querySelector('[data-ui-scale]');
@@ -570,6 +571,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				const sendRequestAndSetHeaderStatusMessage = (path, body, message) => {
 					generatePackageButton.disabled = true;
 					checkForUpdatesButton.disabled = true;
+					uninstallButton.disabled = true;
 					cancelConfiguratorButton.disabled = true;
 
 					return sendRequest(
@@ -587,10 +589,10 @@ $MinimumPatchsetLoadOrderPosition = 2
 					);
 				};
 
-				const sendRequestAndSetFooterStatusMessage = path => {
+				const sendRequestAndSetFooterStatusMessage = (path, method) => {
 					return sendRequest(
 						path,
-						{},
+						{method: method},
 						response => response.json().then(
 							data =>
 							{
@@ -605,6 +607,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				exportLoadOrderButton.addEventListener('click', event => importExportZone.value = currentLoadOrder().join("\r\n"));
 				importLoadOrderButton.addEventListener('click', event => importLoadOrderText(importExportZone.value));
 				checkForUpdatesButton.addEventListener('click', event => sendRequestAndSetFooterStatusMessage('/check-for-updates'));
+				uninstallButton.addEventListener('click', event => sendRequestAndSetFooterStatusMessage('/uninstall', 'POST'));
 				cancelConfiguratorButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/cancel', {}, 'No changes have been made, nor will any be made.'));
 			};
 
@@ -729,6 +732,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 						<button type="button" data-export-load-order-button>Export load-order</button>
 						<button type="button" data-import-load-order-button>Import load-order</button>
 						<button type="button" data-check-for-updates-button>Check for updates</button>
+						<button type="button" data-uninstall-button>Uninstall</button>
 						<button type="button" data-cancel-configurator-button>Cancel</button>
 						<div hidden class="panel scrollable" data-footer-status-message-parent>
 							<div class="textual-panel">
