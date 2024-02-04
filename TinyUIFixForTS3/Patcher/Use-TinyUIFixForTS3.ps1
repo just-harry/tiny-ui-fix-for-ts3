@@ -4595,7 +4595,7 @@ $S3PIByPeterJonesFileDescription = [PSCustomObject] @{
 	Fingerprint = [PSCustomObject] @{FileSize = 326771; SHA256Hash = '4597FCD8119D8E4D4DAF40C80EEF0C72CFCEFFF05315E526D40189A3BDAED804'}
 	URLs = @(
 		@{URL = 'https://sourceforge.net/projects/s3pi/files/17-0520-1823/s3pi_17-0520-1823.7z/download'; UserAgent = 'Wget/2.1.0'}
-		'https://web.archive.org/web/20231221192710/https://master.dl.sourceforge.net/project/s3pi/17-0520-1823/s3pi_17-0520-1823.7z?viasf=1'
+		'https://web.archive.org/web/20231221192710if_/https://master.dl.sourceforge.net/project/s3pi/17-0520-1823/s3pi_17-0520-1823.7z?viasf=1'
 	)
 }
 
@@ -4605,7 +4605,7 @@ $7ZipWindowsFileDescription = [PSCustomObject] @{
 	Fingerprint = [PSCustomObject] @{FileSize = 584704; SHA256Hash = '72C98287B2E8F85EA7BB87834B6CE1CE7CE7F41A8C97A81B307D4D4BF900922B'}
 	URLs = @(
 		'https://github.com/ip7z/7zip/releases/download/23.01/7zr.exe'
-		'https://web.archive.org/web/20231221191331/https://objects.githubusercontent.com/github-production-release-asset-2e65be/466446150/f09b4051-89b1-4b58-b683-02df8a000f40?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20231221%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231221T191331Z&X-Amz-Expires=300&X-Amz-Signature=efbd58553519009dcd853356bdd1e45275a2bd5cd7447bf6216894667591f332&X-Amz-SignedHeaders=host&actor_id=0&key_id=0&repo_id=466446150&response-content-disposition=attachment%3B%20filename%3D7zr.exe&response-content-type=application%2Foctet-stream'
+		'https://web.archive.org/web/20231221191331if_/https://objects.githubusercontent.com/github-production-release-asset-2e65be/466446150/f09b4051-89b1-4b58-b683-02df8a000f40?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20231221%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231221T191331Z&X-Amz-Expires=300&X-Amz-Signature=efbd58553519009dcd853356bdd1e45275a2bd5cd7447bf6216894667591f332&X-Amz-SignedHeaders=host&actor_id=0&key_id=0&repo_id=466446150&response-content-disposition=attachment%3B%20filename%3D7zr.exe&response-content-type=application%2Foctet-stream'
 	)
 }
 
@@ -4615,7 +4615,7 @@ $7ZipMacOSFileDescription = [PSCustomObject] @{
 	Fingerprint = [PSCustomObject] @{FileSize = 1805532; SHA256Hash = '343EAE9CCBBD8F68320ADAAA3C87E0244CF39FAD0FBEC6B9D2CD3E5B0F8A5FBF'}
 	URLs = @(
 		'https://github.com/ip7z/7zip/releases/download/23.01/7z2301-mac.tar.xz'
-		'https://web.archive.org/web/20231221192206/https://objects.githubusercontent.com/github-production-release-asset-2e65be/466446150/05b42ffa-3973-4425-93e7-d162d91d918d?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20231221%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231221T192205Z&X-Amz-Expires=300&X-Amz-Signature=d68460890575ff364a362624a0bc2735654ade30cd41ff20fb990cc9243039f7&X-Amz-SignedHeaders=host&actor_id=0&key_id=0&repo_id=466446150&response-content-disposition=attachment%3B%20filename%3D7z2301-mac.tar.xz&response-content-type=application%2Foctet-stream'
+		'https://web.archive.org/web/20231221192206if_/https://objects.githubusercontent.com/github-production-release-asset-2e65be/466446150/05b42ffa-3973-4425-93e7-d162d91d918d?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20231221%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231221T192205Z&X-Amz-Expires=300&X-Amz-Signature=d68460890575ff364a362624a0bc2735654ade30cd41ff20fb990cc9243039f7&X-Amz-SignedHeaders=host&actor_id=0&key_id=0&repo_id=466446150&response-content-disposition=attachment%3B%20filename%3D7z2301-mac.tar.xz&response-content-type=application%2Foctet-stream'
 	)
 }
 
