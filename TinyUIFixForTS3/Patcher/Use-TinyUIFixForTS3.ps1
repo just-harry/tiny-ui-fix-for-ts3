@@ -1969,12 +1969,12 @@ function Find-StaticMethod ([Mono.Cecil.TypeDefinition] $Type, [String] $Name, [
 
 function Find-InstanceProperty ([Mono.Cecil.TypeDefinition] $Type, [String] $Name)
 {
-	$Type.Properties.Where({-not $_.IsStatic -and $_.Name -ceq $Name}, 'First')[0]
+	$Type.Properties.Where({-not $(if ($Null -ne $_.GetMethod) {$_.GetMethod} else {$_.SetMethod}).IsStatic -and $_.Name -ceq $Name}, 'First')[0]
 }
 
 function Find-StaticProperty ([Mono.Cecil.TypeDefinition] $Type, [String] $Name)
 {
-	$Type.Properties.Where({$_.IsStatic -and $_.Name -ceq $Name}, 'First')[0]
+	$Type.Properties.Where({$(if ($Null -ne $_.GetMethod) {$_.GetMethod} else {$_.SetMethod}).IsStatic -and $_.Name -ceq $Name}, 'First')[0]
 }
 
 
