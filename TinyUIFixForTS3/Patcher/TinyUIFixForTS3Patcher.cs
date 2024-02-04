@@ -1809,6 +1809,18 @@ namespace TinyUIFixForTS3Patcher
 							instruction.Operand = to;
 						}
 					}
+					else if (operandType == OperandType.InlineSwitch)
+					{
+						var targets = instruction.Operand as Instruction[];
+
+						for (uint index = 0; index < targets.Length; ++index)
+						{
+							if (targets[index] == from)
+							{
+								targets[index] = to;
+							}
+						}
+					}
 				}
 			}
 		}
