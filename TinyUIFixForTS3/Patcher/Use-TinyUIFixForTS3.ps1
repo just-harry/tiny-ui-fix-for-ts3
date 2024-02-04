@@ -29,7 +29,6 @@ Param (
 
 				if (-not ($WordToComplete -is [String])) {return $SuggestablePatchsets | ForEach-Object {$_}}
 
-				$Global:CommandAST = $CommandAST
 				$FromPatchsetLoadOrderAST = $CommandAST.CommandElements.Where({$_ -is [Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -eq 'PatchsetLoadOrder'}, 'SkipUntil')
 
 				if ($FromPatchsetLoadOrderAST.Count -eq 0) {return $SuggestablePatchsets | ForEach-Object {$_}}
