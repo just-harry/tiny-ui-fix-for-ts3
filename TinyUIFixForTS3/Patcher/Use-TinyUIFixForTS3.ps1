@@ -2049,9 +2049,6 @@ function Edit-MethodBody ([Mono.Cecil.MethodDefinition] $Method, [ScriptBlock] $
 	$StartWriting = `
 	{
 		Set-Variable IsReadOnly $False -Scope 1
-		Set-Variable StartOfIL $IL.Body.Instructions[0] -Scope 1
-		Set-Variable Instruction $StartOfIL -Scope 1
-		Set-Variable Returns (Find-Returns $IL) -Scope 1
 		$IsReadOnlyReference[0] = $False
 	}
 
