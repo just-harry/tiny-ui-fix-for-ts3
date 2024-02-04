@@ -4322,7 +4322,7 @@ function Load-Patchsets ($ReadPatchsets = (Read-AvailablePatchsets), $LoadOrder,
 
 	foreach ($InvalidPatchset in $ReadPatchsets.InvalidPatchsets)
 	{
-		Write-Warning "The patchset at `"$($InvalidPatchset.Item1)`" was not loaded because: $(& $FormatError $InvalidPatchset.Item2)"
+		Write-Warning "The patchset at `"$($InvalidPatchset.Item1)`" was not loaded because:$([Environment]::Newline)$($InvalidPatchset.Item2)"
 	}
 
 	foreach ($Entry in $ReadPatchsets.PatchsetsWithConflictingIDs.GetEnumerator())
