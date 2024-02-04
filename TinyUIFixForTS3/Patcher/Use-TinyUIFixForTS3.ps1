@@ -71,6 +71,9 @@ Param (
 			[Switch] $AddTinyUIFixDirectivesToCCMagicSettingsFile,
 
 	[Parameter()]
+			[Switch] $Uninstall,
+
+	[Parameter()]
 			[Switch] $ExcludeTemporarilyPowerShellFromControlledFolderAccessProtection,
 
 	[Parameter()]
@@ -5210,6 +5213,37 @@ try
 	}
 
 
+	$UltimateResult = @{}
+
+
+	$ModsPath = Join-Path $InstallationState.Sims3UserDataPath Mods
+	$OverridesPath = Join-Path $ModsPath Overrides
+	$ResourceCFGPath = Join-Path $ModsPath Resource.cfg
+	$TinyUIFixModFolderPath = Join-Path $ModsPath ([TinyUIFixPSForTS3]::ModsFolderName)
+	$GeneratedPackageFilePath = Join-Path $TinyUIFixModFolderPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
+
+
+	$UninstallTinyUIFix = `
+	{
+		$OldGeneratedPackageFilePath = Join-Path $OverridesPath tiny-tiny-ui-fix.package
+		<# Version 1.0.3-and-older of this mod stored the package in the Overrides folder,
+		   so we delete it also to ensure that old installations are uninstalled. #>
+		Remove-Item -LiteralPath $OldGeneratedPackageFilePath -Force -ErrorAction Ignore
+
+		Remove-Item -LiteralPath $GeneratedPackageFilePath -Force -ErrorAction Ignore
+		try {[IO.Directory]::Delete($TinyUIFixModFolderPath)} catch [IO.IOException] {}
+	}.GetNewClosure()
+
+
+	if ($Uninstall)
+	{
+		& $UninstallTinyUIFix
+		$UltimateResult.Uninstalled = $True
+
+		return [PSCustomObject] $UltimateResult
+	}
+
+
 	$LastPatchsetLoadOrderFilePath = Join-Path $PSScriptRoot LastPatchsetLoadOrder.txt
 	$LastPatchsetConfigurationFilePath = Join-Path $PSScriptRoot LastPatchsetConfiguration.json
 
@@ -5339,9 +5373,6 @@ try
 	}
 
 
-	$UltimateResult = @{}
-
-
 	if ($Null -ne $Script:PSBoundParameters.InstallationPlatform)
 	{
 		if ($InstallationPlatform -eq 'macOS')
@@ -5419,15 +5450,9 @@ try
 	}
 
 
-	$ModsPath = Join-Path $Script:ExpectedSims3Paths.Sims3UserDataPath Mods
-	$OverridesPath = Join-Path $ModsPath Overrides
-	$ResourceCFGPath = Join-Path $ModsPath Resource.cfg
-	$TinyUIFixModFolderPath = Join-Path $ModsPath ([TinyUIFixPSForTS3]::ModsFolderName)
-
-
 	if (-not $SkipGenerationOfPackage)
 	{
-		$OldGeneratedPackageFilePath = Join-Path $OverridesPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
+		$OldGeneratedPackageFilePath = Join-Path $OverridesPath tiny-ui-fix.package
 		<# Version 1.0.3-and-older of this mod stored the package in the Overrides folder, so we delete it
 		   to prevent new installations from conflicting with old installations. #>
 		Remove-Item -LiteralPath $OldGeneratedPackageFilePath -Force -ErrorAction Ignore
@@ -5656,8 +5681,6 @@ try
 	{
 		New-Item -ItemType Directory -Force -Path $TinyUIFixModFolderPath -ErrorAction Stop > $Null
 	}
-
-	$GeneratedPackageFilePath = Join-Path $TinyUIFixModFolderPath ([TinyUIFixPSForTS3]::GeneratedPackageName)
 
 
 	$ResourcesToPatch = Find-ResourcesToPatch $ResolvedResourcesPriorities $PatchingState
