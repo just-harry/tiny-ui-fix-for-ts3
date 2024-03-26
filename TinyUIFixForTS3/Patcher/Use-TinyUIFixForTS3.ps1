@@ -428,9 +428,6 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 							$RegValues = Get-ValuesFromINI $RegLines
 							$FirstSectionKey = $RegValues.Keys[1]
 
-							Write-Host "FirstSectionKey: $FirstSectionKey; Path: $Path"
-
-							#if ($Null -ne $FirstSectionKey -and $Null -ne ($FirstSection = $RegValues[$FirstSection]))
 							if ($Null -ne ($FirstSection = $RegValues["HKEY_LOCAL_MACHINE\SOFTWARE\Sims\$Name"]))
 							{
 								$Locale = $FirstSection['"Locale"']
