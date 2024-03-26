@@ -40,6 +40,11 @@ Process
 {
 	if ($InputObject -is [String] -or $InputObject -is [IO.FileInfo])
 	{
+		if ($InputObject -is [String])
+		{
+			$InputObject = $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InputObject)
+		}
+
 		try
 		{
 			$Resolver = [Mono.Cecil.DefaultAssemblyResolver]::new()
