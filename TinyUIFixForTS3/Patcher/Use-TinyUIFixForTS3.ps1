@@ -252,6 +252,311 @@ function Get-ValuesFromINI ($INILines)
 }
 
 
+<# See some scant documentation, here: https://developer.valvesoftware.com/wiki/KeyValues #>
+function ConvertFrom-VDF
+{
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory, ValueFromPipeline, Position = 0)]
+				[String] $VDF
+	)
+
+	Process
+	{
+		$ParentObjectKey = [Object]::new()
+		$Object = [Ordered] @{}
+		$Index = 0
+		$Length = $VDF.Length
+
+		$CR = [Char] "`r"
+		$LF = [Char] "`n"
+		$Tab = [Char] "`t"
+		$Space = [Char] ' '
+		$Quote = [Char] '"'
+		$Backslash = [Char] '\'
+		$ForwardSlash = [Char] '/'
+		$n = [Char] 'n'
+		$t = [Char] 't'
+		$LeftCurlyBracket = [Char] '{'
+		$RightCurlyBracket = [Char] '}'
+		$LeftSquareBracket = [Char] '['
+		$RightSquareBracket = [Char] ']'
+		$LeastDigit = [Char] '0'
+		$MostDigit = [Char] '9'
+		$Dot = [Char] '.'
+		$Minus = [Char] '-'
+		$Plus = [Char] '+'
+
+		$KeyOrValue = 0
+		$KeyValuePair = @($Null, $Null)
+
+		$NumberFormat = [Globalization.NumberFormatInfo]::new()
+
+		while ($Index -lt $Length)
+		{
+			$C = [Char] $VDF[$Index]
+
+			if ($C -ceq $Tab -or $C -ceq $Space -or $C -ceq $LF -or $C -ceq $CR)
+			{
+				++$Index
+				continue
+			}
+
+			if ($C -ceq $Quote)
+			{
+				++$Index
+
+				$Sequence = for (;;)
+				{
+					if ($Index -ge $Length)
+					{
+						Write-Error "A string was left unterminated at UTF-16 code-unit $Index."
+
+						break
+					}
+
+					$C = [Char] $VDF[$Index]
+
+					if ($C -ceq $Quote)
+					{
+						++$Index
+
+						break
+					}
+
+					if ($C -ceq $Backslash)
+					{
+						++$Index
+
+						if ($Index -ge $Length)
+						{
+							Write-Error "An escape-sequence was left unterminated at UTF-16 code-unit $Index."
+
+							break
+						}
+
+						$C = [Char] $VDF[$Index]
+
+						if ($C -ceq $Backslash)
+						{
+							$Backslash
+						}
+						elseif ($C -ceq $Quote)
+						{
+							$Quote
+						}
+						elseif ($C -ceq $n)
+						{
+							$LF
+						}
+						elseif ($C -ceq $t)
+						{
+							$Tab
+						}
+						else
+						{
+							Write-Error "The escape sequence ``\$C`` at UTF-16 code-unit $Index is invalid."
+						}
+
+						++$Index
+					}
+					else
+					{
+						++$Index
+
+						$C
+					}
+				}
+
+				$KeyValuePair[($KeyOrValue++)] = if ($Null -ne $Sequence) {[String]::new($Sequence)} else {[String]::Empty}
+
+				if ($KeyOrValue -eq 2)
+				{
+					$KeyOrValue = 0
+					$Object[[Object] $KeyValuePair[0]] = $KeyValuePair[1]
+				}
+			}
+			elseif ($C -ceq $LeftCurlyBracket)
+			{
+				$SubObject = [Ordered] @{}
+
+				if ($KeyOrValue -eq 1)
+				{
+					$Object[[Object] $KeyValuePair[0]] = $SubObject
+					$KeyOrValue = 0
+				}
+				else
+				{
+					Write-Error "An object opened at UTF-16 code-unit $Index was not preceded by a key."
+				}
+
+				$SubObject[$ParentObjectKey] = $Object
+				$Object = $SubObject
+
+				++$Index
+			}
+			elseif ($C -ceq $RightCurlyBracket)
+			{
+				$ParentObject = $Object[$ParentObjectKey]
+
+				if ($Null -ne $ParentObject)
+				{
+					if ($KeyOrValue -gt 0)
+					{
+						Write-Error "A key was left without a value in the object ending at UTF-16 code-unit $Index."
+
+						$KeyOrValue = 0
+					}
+				}
+				else
+				{
+					Write-Error "A ``}`` at UTF-16 code-unit $Index was not preceded by a ``{``."
+
+					++$Index
+
+					break
+				}
+
+				$Object.Remove($ParentObjectKey)
+				$Object = $ParentObject
+
+				++$Index
+			}
+			elseif ($C -ceq $ForwardSlash -and $Index + 1 -lt $Length -and [Char] $VDF[$Index + 1] -ceq $ForwardSlash)
+			{
+				$Index += 2
+
+				for (;;)
+				{
+					if ($Index -ge $Length)
+					{
+						break
+					}
+
+					$C = [Char] $VDF[$Index]
+
+					++$Index
+
+					if ($C -ceq $LF -or $C -ceq $CR)
+					{
+						break
+					}
+				}
+			}
+			else
+			{
+				$NonNumeric = $False
+				$DotCount = 0
+				$PlusAndMinusCount = 0
+
+				$Primitive = [String]::new(
+					$(
+						for (;;)
+						{
+							if ($C -ge $LeastDigit -and $C -le $MostDigit)
+							{
+								$C
+							}
+							elseif ($C -ceq $Dot)
+							{
+								++$DotCount
+
+								$C
+							}
+							elseif ($C -ceq $Minus -or $C -ceq $Plus)
+							{
+								++$PlusAndMinusCount
+
+								$C
+							}
+							else
+							{
+								$NonNumeric = $True
+
+								$C
+							}
+
+							++$Index
+
+							if ($Index -ge $Length)
+							{
+								break
+							}
+
+							$C = [Char] $VDF[$Index]
+
+							if ($C -ceq $Tab -or $C -ceq $Space -or $C -ceq $LF -or $C -ceq $CR -or $C -ceq $Quote -or $C -ceq $LeftCurlyBracket -or $C -ceq $RightCurlyBracket)
+							{
+								break
+							}
+						}
+					)
+				)
+
+				if (
+					    $Primitive.Length -le 1 `
+					-or [Char] $Primitive[0] -cne $LeftSquareBracket `
+					-or [Char] $Primitive[$Primitive.Length - 1] -cne $RightSquareBracket
+				)
+				{
+					$KeyValuePair[($KeyOrValue++)] = if (
+						    $NonNumeric `
+						-or $DotCount -ge 2 `
+						-or $PlusAndMinusCount -ge 2 `
+						-or ($PlusAndMinusCount -eq 1 -and [Char] $Primitive[0] -cne $Minus -and [Char] $Primitive[0] -cne $Plus))
+					{
+						$Primitive
+					}
+					elseif ($DotCount -eq 1)
+					{
+						[Float]::Parse($Primitive, $NumberFormat)
+					}
+					else
+					{
+						$Integer = $Null
+
+						if (
+							    [Int32]::TryParse($Primitive, $NumberFormat, [Ref] $Integer) `
+							-or [UInt32]::TryParse($Primitive, $NumberFormat, [Ref] $Integer) `
+							-or [Int64]::TryParse($Primitive, $NumberFormat, [Ref] $Integer) `
+							-or [UInt64]::TryParse($Primitive, $NumberFormat, [Ref] $Integer)
+						)
+						{
+							$Integer
+						}
+						else
+						{
+							$Primitive
+						}
+					}
+
+					if ($KeyOrValue -eq 2)
+					{
+						$KeyOrValue = 0
+						$Object[[Object] $KeyValuePair[0]] = $KeyValuePair[1]
+					}
+				}
+			}
+		}
+
+		while ($Null -ne ($ParentObject = $Object[$ParentObjectKey]))
+		{
+			Write-Error 'An object was left unclosed.'
+
+			$Object.Remove($ParentObjectKey)
+			$Object = $ParentObject
+		}
+
+		if ($KeyOrValue -gt 0)
+		{
+			Write-Error "The last key of the root object of the VDF was left without a value."
+		}
+
+		$Object
+	}
+}
+
+
 enum TinyUIFixForTS3Sims3InstallationType
 {
 	Windows
