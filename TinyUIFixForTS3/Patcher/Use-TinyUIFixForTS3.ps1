@@ -652,32 +652,34 @@ function Get-Sims3InstallationStateOnWindows ($OverrideSims3Path, $OverrideSims3
 						if ($Null -ne $Found) {$Found}
 					}
 
-					$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
-					{
-						$GamePacksInRegistry
-					}
-					else
-					{
-						$GamePacksInRegistryByPath = [TinyUIFixPSForTS3]::IndexBy(
-							$GamePacksInRegistry.Where{$_.Path},
-							{([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($_.Path)).FullName}
-						)
-
-						foreach ($Path in $OverrideSims3GamePackPaths)
+					$GamePacks = @(
+						if ($Null -eq $OverrideSims3GamePackPaths)
 						{
-							$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+							$GamePacksInRegistry
+						}
+						else
+						{
+							$GamePacksInRegistryByPath = [TinyUIFixPSForTS3]::IndexBy(
+								$GamePacksInRegistry.Where{$_.Path},
+								{([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($_.Path)).FullName}
+							)
 
-							if ($Directory.Exists)
+							foreach ($Path in $OverrideSims3GamePackPaths)
 							{
-								$Locale = if ($RegistryEntry = $GamePacksInRegistryByPath[$Directory.FullName])
-								{
-									$RegistryEntry.Locale
-								}
+								$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
 
-								[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+								if ($Directory.Exists)
+								{
+									$Locale = if ($RegistryEntry = $GamePacksInRegistryByPath[$Directory.FullName])
+									{
+										$RegistryEntry.Locale
+									}
+
+									[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+								}
 							}
 						}
-					}
+					)
 
 					[PSCustomObject] @{BaseGame = $BaseGame; GamePacks = $GamePacks}
 				)
@@ -736,28 +738,30 @@ function Get-Sims3InstallationStateOnWindows ($OverrideSims3Path, $OverrideSims3
 
 				$BaseGame = [PSCustomObject] @{Path = $BaseGamePath; Locale = $Locale}
 
-				$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
-				{
-					if ($Null -ne $BaseGamePath)
+				$GamePacks = @(
+					if ($Null -eq $OverrideSims3GamePackPaths)
 					{
-						$NamePattern = [RegEx]::new('^(?:SP[1-9]|EP(?:[1-9]|1[0-1]))$', [Text.RegularExpressions.RegexOptions]::Compiled -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase)
-						$InstalledGamePacks = Get-ChildItem -Directory -LiteralPath $BaseGamePath | ? {$_.Name -match $NamePattern}
-
-						$InstalledGamePacks | % {[PSCustomObject] @{Path = $_.FullName; Locale = $Locale}}
-					}
-				}
-				else
-				{
-					foreach ($GamePackPath in $OverrideSims3GamePackPaths)
-					{
-						$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GamePackPath)
-
-						if ($Directory.Exists)
+						if ($Null -ne $BaseGamePath)
 						{
-							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							$NamePattern = [RegEx]::new('^(?:SP[1-9]|EP(?:[1-9]|1[0-1]))$', [Text.RegularExpressions.RegexOptions]::Compiled -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+							$InstalledGamePacks = Get-ChildItem -Directory -LiteralPath $BaseGamePath | ? {$_.Name -match $NamePattern}
+
+							$InstalledGamePacks | % {[PSCustomObject] @{Path = $_.FullName; Locale = $Locale}}
 						}
 					}
-				}
+					else
+					{
+						foreach ($GamePackPath in $OverrideSims3GamePackPaths)
+						{
+							$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GamePackPath)
+
+							if ($Directory.Exists)
+							{
+								[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							}
+						}
+					}
+				)
 
 				[PSCustomObject] @{BaseGame = $BaseGame; GamePacks = $GamePacks}
 			}
@@ -788,25 +792,29 @@ function Get-Sims3InstallationStateOnWindows ($OverrideSims3Path, $OverrideSims3
 	}
 
 	[PSCustomObject] @{
-		RegistryVersion = if ($Null -ne $RegistryData.Sims3.BaseGame.Path)
-		{
-			[PSCustomObject] @{
-				Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
-				BaseGame = $RegistryData.Sims3.BaseGame
-				Sims3UserDataPath = & $UserDataPathForLocale $RegistryData.Sims3.BaseGame.Locale
-				GamePacks = $RegistryData.Sims3.GamePacks
+		RegistryVersion = $(
+			if ($Null -ne $RegistryData.Sims3.BaseGame.Path)
+			{
+				[PSCustomObject] @{
+					Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
+					BaseGame = $RegistryData.Sims3.BaseGame
+					Sims3UserDataPath = & $UserDataPathForLocale $RegistryData.Sims3.BaseGame.Locale
+					GamePacks = $RegistryData.Sims3.GamePacks
+				}
 			}
-		}
+		)
 
-		SteamVersion = if ($Null -ne $Sims3Steam)
-		{
-			[PSCustomObject] @{
-				Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
-				BaseGame = $Sims3Steam.BaseGame
-				Sims3UserDataPath = & $UserDataPathForLocale $Sims3Steam.BaseGame.Locale
-				GamePacks = $Sims3Steam.GamePacks
+		SteamVersion = $(
+			if ($Null -ne $Sims3Steam)
+			{
+				[PSCustomObject] @{
+					Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
+					BaseGame = $Sims3Steam.BaseGame
+					Sims3UserDataPath = & $UserDataPathForLocale $Sims3Steam.BaseGame.Locale
+					GamePacks = $Sims3Steam.GamePacks
+				}
 			}
-		}
+		)
 	}
 }
 
@@ -896,37 +904,39 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 
 				$BaseGameLocale = & $GetLocaleForGamePack $BaseGameUpdateAlwaysPath 'The Sims 3'
 
-				$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
-				{
-					foreach ($Expansion in '70s, 80s, & 90s Stuff', 'Ambitions', 'Diesel Stuff', 'Fast Lane Stuff', 'Generations', 'High-End Loft Stuff', 'Into the Future', 'Island Paradise', 'Katy Perry''s Sweet Treats', 'Late Night', 'Master Suite Stuff', 'Movie Stuff', 'Outdoor Living Stuff', 'Pets', 'Seasons', 'Showtime', 'Supernatural', 'Town Life Stuff', 'University Life', 'World Adventures')
+				$GamePacks = @(
+					if ($Null -eq $OverrideSims3GamePackPaths)
 					{
-						$GamePackName = "The Sims 3 $Expansion"
-						$Directory = [IO.DirectoryInfo] (Join-Path $ElectronicArtsPath $GamePackName)
-
-						if ($Directory.Exists)
+						foreach ($Expansion in '70s, 80s, & 90s Stuff', 'Ambitions', 'Diesel Stuff', 'Fast Lane Stuff', 'Generations', 'High-End Loft Stuff', 'Into the Future', 'Island Paradise', 'Katy Perry''s Sweet Treats', 'Late Night', 'Master Suite Stuff', 'Movie Stuff', 'Outdoor Living Stuff', 'Pets', 'Seasons', 'Showtime', 'Supernatural', 'Town Life Stuff', 'University Life', 'World Adventures')
 						{
-							$UpdateAlwaysPath = Join-Path $Directory.FullName ../../../../../Preferences/update_always.reg
-							$Locale = & $GetLocaleForGamePack $UpdateAlwaysPath $GamePackName
+							$GamePackName = "The Sims 3 $Expansion"
+							$Directory = [IO.DirectoryInfo] (Join-Path $ElectronicArtsPath $GamePackName)
 
-							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							if ($Directory.Exists)
+							{
+								$UpdateAlwaysPath = Join-Path $Directory.FullName ../../../../../Preferences/update_always.reg
+								$Locale = & $GetLocaleForGamePack $UpdateAlwaysPath $GamePackName
+
+								[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							}
 						}
 					}
-				}
-				else
-				{
-					foreach ($GamePackPath in $OverrideSims3GamePackPaths)
+					else
 					{
-						$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
-
-						if ($Directory.Exists)
+						foreach ($GamePackPath in $OverrideSims3GamePackPaths)
 						{
-							$UpdateAlwaysPath = Join-Path $Directory.FullName ../../../../../Preferences/update_always.reg
-							$Locale = & $GetLocaleForGamePack $UpdateAlwaysPath $Directory.Name
+							$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
 
-							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							if ($Directory.Exists)
+							{
+								$UpdateAlwaysPath = Join-Path $Directory.FullName ../../../../../Preferences/update_always.reg
+								$Locale = & $GetLocaleForGamePack $UpdateAlwaysPath $Directory.Name
+
+								[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							}
 						}
 					}
-				}
+				)
 
 				$32BitVersion = [PSCustomObject] @{Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS32Bit; BaseGame = [PSCustomObject] @{Path = $BaseGamePath; Locale = $BaseGameLocale}; Sims3UserDataPath = $Null; GamePacks = $GamePacks}
 				$32BitVersion.Sims3UserDataPath = & $GetUserDataPathForInstallation $32BitVersion
@@ -947,33 +957,35 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 
 				$BaseGame = [PSCustomObject] @{Path = $Path; Locale = $Locale}
 
-				$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
-				{
-					$GamePacksPath = @(
-						(Join-Path $Global:HOME 'Applications/The Sims 3 Packs'),
-						'Applications/The Sims 3 Packs'
-					).Where({Test-Path -PathType Container -LiteralPath $_}, 'First')[0]
-
-					if ($Null -ne $GamePacksPath)
+				$GamePacks = @(
+					if ($Null -eq $OverrideSims3GamePackPaths)
 					{
-						$NamePattern = [RegEx]::new('^(?:SP0[1-9]|EP(?:0[1-9]|1[0-1]))$', [Text.RegularExpressions.RegexOptions]::Compiled -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase)
-						$InstalledGamePacks = Get-ChildItem -Directory -LiteralPath $GamePacksPath | ? {$_.Name -match $NamePattern}
+						$GamePacksPath = @(
+							(Join-Path $Global:HOME 'Applications/The Sims 3 Packs'),
+							'Applications/The Sims 3 Packs'
+						).Where({Test-Path -PathType Container -LiteralPath $_}, 'First')[0]
 
-						$InstalledGamePacks | % {[PSCustomObject] @{Path = $_.FullName; Locale = $Locale}}
-					}
-				}
-				else
-				{
-					foreach ($GamePackPath in $OverrideSims3GamePackPaths)
-					{
-						$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GamePackPath)
-
-						if ($Directory.Exists)
+						if ($Null -ne $GamePacksPath)
 						{
-							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							$NamePattern = [RegEx]::new('^(?:SP0[1-9]|EP(?:0[1-9]|1[0-1]))$', [Text.RegularExpressions.RegexOptions]::Compiled -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+							$InstalledGamePacks = Get-ChildItem -Directory -LiteralPath $GamePacksPath | ? {$_.Name -match $NamePattern}
+
+							$InstalledGamePacks | % {[PSCustomObject] @{Path = $_.FullName; Locale = $Locale}}
 						}
 					}
-				}
+					else
+					{
+						foreach ($GamePackPath in $OverrideSims3GamePackPaths)
+						{
+							$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GamePackPath)
+
+							if ($Directory.Exists)
+							{
+								[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+							}
+						}
+					}
+				)
 
 				$64BitVersion = [PSCustomObject] @{Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit; BaseGame = $BaseGame; Sims3UserDataPath = $Null; GamePacks = $GamePacks}
 				$64BitVersion.Sims3UserDataPath = & $GetUserDataPathForInstallation $64BitVersion
