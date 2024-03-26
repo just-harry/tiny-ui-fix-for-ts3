@@ -86,6 +86,9 @@ Param (
 			[Switch] $Prefer32BitMacOSVersion,
 
 	[Parameter()]
+			[Switch] $PreferSteamVersion,
+
+	[Parameter()]
 			$InstallationPlatform,
 
 	[Parameter()]
@@ -557,6 +560,49 @@ function ConvertFrom-VDF
 }
 
 
+function Select-ChosenOne
+{
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory, ValueFromPipeline)]
+				$InputObject,
+
+		[Parameter(Mandatory, Position = 0)]
+				[ScriptBlock] $Choose,
+
+		[Parameter(Position = 1)]
+				[ScriptBlock] $Map = {Param ($A) $A}
+	)
+
+	Begin
+	{
+		$ChosenOne = $Null
+		$ProcessedFirst = $False
+	}
+
+	Process
+	{
+		if ($ProcessedFirst)
+		{
+			$ChosenOne = @($ChosenOne, $InputObject)[(& $Choose (& $Map $ChosenOne) (& $Map $InputObject))]
+		}
+		else
+		{
+			$ProcessedFirst = $True
+			$ChosenOne = $InputObject
+		}
+	}
+
+	End
+	{
+		$ChosenOne
+	}
+}
+
+
+$SelectGreater = {Param ($A, $B) [Int32] ($B -gt $A)}
+
+
 enum TinyUIFixForTS3Sims3InstallationType
 {
 	Windows
@@ -639,27 +685,128 @@ function Get-Sims3InstallationStateOnWindows ($OverrideSims3Path, $OverrideSims3
 		}
 	)
 
-	$UserDataPath = if ($Null -eq $OverrideSims3UserDataPath)
+	$Sims3Steam = $(
+		$SteamPath = Get-SteamPathOnWindows
+
+		if (
+			     $Null -ne $SteamPath `
+			-and $Null -ne ($LibraryFoldersVDF = Get-Content -Raw -LiteralPath (Join-Path $SteamPath steamapps/libraryfolders.vdf) -ErrorAction Ignore) `
+			-and $Null -ne ($LibraryFolders = try {$LibraryFoldersVDF | ConvertFrom-VDF -ErrorAction Stop} catch {})
+		)
+		{
+			$SteamInstallation = $LibraryFolders.libraryfolders.Values | ? {$_.apps.Contains('47890')} | % `
+			{
+				if (
+					     $Null -ne ($ManifestVDF = Get-Content -Raw -LiteralPath (Join-Path $_.path steamapps/appmanifest_47890.acf) -ErrorAction Ignore) `
+					-and $Null -ne ($Manifest = try {$ManifestVDF | ConvertFrom-VDF -ErrorAction Stop} catch {}) `
+					-and $(
+						$AppState = $Manifest.AppState
+						$StateFlags = [UInt64] $AppState.StateFlags
+
+						     $StateFlags -ne 0 -and ($StateFlags -band (1 -bor 2048)) -eq 0 `
+						-and $(
+							$Path = Join-Path $_.path "steamapps/common/$($AppState.installdir)"
+							Test-Path -LiteralPath $Path -PathType Container
+						)
+					)
+				)
+				{
+					@{Path = $Path; Time = [UInt64] $AppState.LastUpdated; Language = $AppState.UserConfig.language}
+				}
+			} `
+			| Select-ChosenOne $SelectGreater {Param ($A) $A.Time}
+
+			if ($Null -ne $SteamInstallation)
+			{
+				$Locale = [TinyUIFixPSForTS3]::SteamConfigLanguageToSims3LocaleID[$SteamInstallation.Language]
+
+				if ($Null -eq $Locale)
+				{
+					$Locale = 'en-US'
+				}
+
+				$BaseGamePath = if ($Null -eq $OverrideSims3Path)
+				{
+					$SteamInstallation.Path
+				}
+				else
+				{
+					([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3Path)).FullName
+				}
+
+				$BaseGame = [PSCustomObject] @{Path = $BaseGamePath; Locale = $Locale}
+
+				$GamePacks = if ($Null -eq $OverrideSims3GamePackPaths)
+				{
+					if ($Null -ne $BaseGamePath)
+					{
+						$NamePattern = [RegEx]::new('^(?:SP[1-9]|EP(?:[1-9]|1[0-1]))$', [Text.RegularExpressions.RegexOptions]::Compiled -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+						$InstalledGamePacks = Get-ChildItem -Directory -LiteralPath $BaseGamePath | ? {$_.Name -match $NamePattern}
+
+						$InstalledGamePacks | % {[PSCustomObject] @{Path = $_.FullName; Locale = $Locale}}
+					}
+				}
+				else
+				{
+					foreach ($GamePackPath in $OverrideSims3GamePackPaths)
+					{
+						$Directory = [IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GamePackPath)
+
+						if ($Directory.Exists)
+						{
+							[PSCustomObject] @{Path = $Directory.FullName; Locale = $Locale}
+						}
+					}
+				}
+
+				[PSCustomObject] @{BaseGame = $BaseGame; GamePacks = $GamePacks}
+			}
+		}
+	)
+
+	$UserDataPathForLocale = if ($Null -eq $OverrideSims3UserDataPath)
 	{
-		$Sims3UserDataPathBase = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) 'Electronic Arts'
+		{
+			Param ($Locale)
 
-		$BaseGameLocale = if ($Null -ne $RegistryData.Sims3.BaseGame.Locale) {[TinyUIFixPSForTS3]::Sims3LocalesByID[$RegistryData.Sims3.BaseGame.Locale]}
-		if ($Null -eq $BaseGameLocale) {$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID['en-US']}
+			$Sims3UserDataPathBase = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) 'Electronic Arts'
 
-		$Path = Join-Path $Sims3UserDataPathBase $BaseGameLocale.UserDataDirectoryName
-		if (-not (Test-Path -PathType Container -LiteralPath $Path)) {$Path = Join-Path $Sims3UserDataPathBase 'The Sims 3'}
-		$Path
+			$BaseGameLocale = if ($Null -ne $Locale) {[TinyUIFixPSForTS3]::Sims3LocalesByID[$Locale]}
+			if ($Null -eq $BaseGameLocale) {$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID['en-US']}
+
+			$Path = Join-Path $Sims3UserDataPathBase $BaseGameLocale.UserDataDirectoryName
+			if (-not (Test-Path -PathType Container -LiteralPath $Path)) {$Path = Join-Path $Sims3UserDataPathBase 'The Sims 3'}
+			$Path
+		}
 	}
 	else
 	{
-		([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3UserDataPath)).FullName
+		{
+			Param ($Locale)
+			([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3UserDataPath)).FullName
+		}
 	}
 
 	[PSCustomObject] @{
-		Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
-		BaseGame = $RegistryData.Sims3.BaseGame
-		Sims3UserDataPath = $UserDataPath
-		GamePacks = $RegistryData.Sims3.GamePacks
+		RegistryVersion = if ($Null -ne $RegistryData.Sims3.BaseGame.Path)
+		{
+			[PSCustomObject] @{
+				Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
+				BaseGame = $RegistryData.Sims3.BaseGame
+				Sims3UserDataPath = & $UserDataPathForLocale $RegistryData.Sims3.BaseGame.Locale
+				GamePacks = $RegistryData.Sims3.GamePacks
+			}
+		}
+
+		SteamVersion = if ($Null -ne $Sims3Steam)
+		{
+			[PSCustomObject] @{
+				Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
+				BaseGame = $Sims3Steam.BaseGame
+				Sims3UserDataPath = & $UserDataPathForLocale $Sims3Steam.BaseGame.Locale
+				GamePacks = $Sims3Steam.GamePacks
+			}
+		}
 	}
 }
 
@@ -894,6 +1041,22 @@ function Get-S3PEPathOnWindows
 }
 
 
+function Get-SteamPathOnWindows
+{
+	[TinyUIFixPSForTS3]::UseDisposable(
+		{[Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry32)},
+		{
+			Param ($Registry)
+
+			[TinyUIFixPSForTS3]::UseDisposable(
+				{$Registry.OpenSubKey('SOFTWARE\Valve\Steam')},
+				{Param ($Key) if ($Null -ne $Key) {$Key.GetValue('InstallPath')}}
+			)
+		}
+	)
+}
+
+
 function Get-ExpectedCCMagicPath ($Sims3UserDataPath)
 {
 	Join-Path (Split-Path -LiteralPath $Sims3UserDataPath) 'CC Magic'
@@ -1112,6 +1275,26 @@ class TinyUIFixPSForTS3
 		[TinyUIFixPSForTS3]::Sims3LocalesByCode.Values.ForEach{$ByID[$_.ID] = $_}
 		$ByID
 	)
+
+	static [HashTable] $SteamConfigLanguageToSims3LocaleID = @{
+		english = 'en-US'
+		german = 'de-DE'
+		french = 'fr-FR'
+		italian = 'it-IT'
+		koreana = 'ko-KR'
+		spanish = 'es-ES'
+		tchinese = 'zh-TW'
+		russian = 'ru-RU'
+		portuguese = 'pt-PT'
+		polish = 'pl-PL'
+		danish = 'da-DK'
+		dutch = 'nl-NL'
+		finnish = 'fi-FI'
+		norwegian = 'no-NO'
+		swedish = 'sv-SE'
+		hungarian = 'hu-HU'
+		czech = 'cs-CZ'
+	}
 
 	static [String] $HexResourceKeyRegExPattern = '0x(?<ResourceType>[0-9A-Fa-f]{8})-0x(?<ResourceGroup>[0-9A-Fa-f]{8})-0x(?<Instance>[0-9A-Fa-f]{16})'
 
@@ -4932,6 +5115,12 @@ function Read-YesOrNo ($Prompt)
 }
 
 
+function Read-NoOrYes ($Prompt)
+{
+	$Host.UI.PromptForChoice($Null, $Prompt, ('&No', '&Yes'), 0) -eq 1
+}
+
+
 function Invoke-Configurator ($DesiredPort, $PageContents, $State, $Actions)
 {
 	$ConfiguratorInvocationResult = $Null
@@ -5361,7 +5550,38 @@ try
 
 		$InstallationState = if ($Script:IsWindows)
 		{
-			Get-Sims3InstallationStateOnWindows
+			$State = Get-Sims3InstallationStateOnWindows
+
+			if ($Null -ne $State.RegistryVersion -and $Null -ne $State.SteamVersion)
+			{
+				if (-not $NonInteractive)
+				{
+					if ($Host.UI.PromptForChoice($Null, 'An installation of The Sims 3 was found in both the Windows Registry and in a Steam library folder. Which installation would you like to scale the UI of?', ('&Registry', '&Steam'), [Int32] [Bool] $PreferSteamVersion) -eq 0)
+					{
+						$State.RegistryVersion
+					}
+					else
+					{
+						$State.SteamVersion
+					}
+				}
+				elseif ($PreferSteamVersion)
+				{
+					$State.SteamVersion
+				}
+				else
+				{
+					$State.RegistryVersion
+				}
+			}
+			elseif ($Null -ne $State.RegistryVersion)
+			{
+				$State.RegistryVersion
+			}
+			elseif ($Null -ne $State.SteamVersion)
+			{
+				$State.SteamVersion
+			}
 		}
 		elseif ($Script:IsMacOS)
 		{
