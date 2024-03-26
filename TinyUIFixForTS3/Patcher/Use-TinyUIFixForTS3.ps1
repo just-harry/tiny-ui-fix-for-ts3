@@ -5623,15 +5623,87 @@ try
 			Get-Sims3InstallationStateOnOtherOperatingSystems
 		}
 
+		if ($Null -eq $InstallationState)
+		{
+			$InstallationState = [PSCustomObject] @{
+				Type = [TinyUIFixForTS3Sims3InstallationType]::OtherOperatingSystems
+				BaseGame = [PSCustomObject] @{Path = $Null; Locale = 'en-US'}
+				GamePacks = @()
+				Sims3UserDataPath = $Null
+			}
+		}
+
 		if (-not $NonInteractive)
 		{
 			if (-not (Test-Sims3Path $InstallationState.BaseGame.Path $InstallationState.Type))
 			{
-				$InstallationState.BaseGame.Path = Read-Host 'The file-path of your installation of The Sims 3 could not be automatically found, please supply the file-path of your Sims 3 installation. (It is usually a folder named "The Sims 3")'
-
-				if (-not (Test-Sims3Path $InstallationState.BaseGame.Path $InstallationState.Type))
+				$InstallationTypeKey = if ($IsWindows)
 				{
-					Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $InstallationState.BaseGame.Path $(if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
+					$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::Windows
+
+					if (Read-NoOrYes 'The file-path of your installation of The Sims 3 could not be automatically found. Is the installation of The Sims 3 that you would like to patch the Steam version of the game?')
+					{
+						'SteamVersion'
+					}
+					else
+					{
+						'RegistryVersion'
+					}
+				}
+				elseif ($IsMacOS)
+				{
+					$Choice = $Host.UI.PromptForChoice(
+						$Null,
+						'The file-path of your installation of The Sims 3 could not be automatically found. Is the installation of The Sims 3 that you would like to patch the sixty-four bit version or the thirty-two bit version of the game?',
+						('&Sixty-four bit', '&Thirty-two bit'),
+						0
+					)
+
+					if ($Choice -eq 0)
+					{
+						$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit
+						'64BitVersion'
+					}
+					else
+					{
+						$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS32Bit
+						'32BitVersion'
+					}
+				}
+
+				for (;;)
+				{
+					$InstallationState.BaseGame.Path = Read-Host "Please supply the file-path of your Sims 3 installation. To clarify, this should be the path for the folder that the game is installed in, not the folder that mods are installed in. (It is usually a folder named `"The Sims 3`"$(if ($IsWindows) {', probably somewhere in the "Program Files (x86)" folder'} elseif ($IsMacOS) {', probably somewhere in the "~/Applications" or "/Applications" folders'}))"
+
+					if ([String]::IsNullOrWhiteSpace($InstallationState.BaseGame.Path))
+					{}
+					elseif (-not (Test-Sims3Path $InstallationState.BaseGame.Path $InstallationState.Type))
+					{
+						Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $InstallationState.BaseGame.Path $(if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
+					}
+					else
+					{
+						break
+					}
+				}
+
+				if ($IsWindows)
+				{
+					$State = (Get-Sims3InstallationStateOnWindows -OverrideSims3Path $InstallationState.BaseGame.Path).$InstallationTypeKey
+
+					if ($Null -ne $State.BaseGame.Path)
+					{
+						$InstallationState = $State
+					}
+				}
+				elseif ($IsMacOS)
+				{
+					$State = (Get-Sims3InstallationStateOnMacOS -OverrideSims3Path $InstallationState.BaseGame.Path).$InstallationTypeKey
+
+					if ($Null -ne $State.BaseGame.Path)
+					{
+						$InstallationState = $State
+					}
 				}
 			}
 
