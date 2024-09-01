@@ -962,7 +962,7 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 					{
 						$GamePacksPath = @(
 							(Join-Path $Global:HOME 'Applications/The Sims 3 Packs'),
-							'Applications/The Sims 3 Packs'
+							'/Applications/The Sims 3 Packs'
 						).Where({Test-Path -PathType Container -LiteralPath $_}, 'First')[0]
 
 						if ($Null -ne $GamePacksPath)
