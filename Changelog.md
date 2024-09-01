@@ -2,6 +2,25 @@
 
 ## Changelog
 
+### Version 1.4.0
+
+#### User-facing
+
+- In previous versions of the mod, some users have encountered a bug wherein the game becomes unable to re-enter Live mode after entering Buy/Build mode. This seems to be caused by dismissal of the "Popular Store Items" notification (which appears after entering Buy/Build mode, if Shop Mode is enabled). To prevent this from happening, the mod now prevents those Store notifications from appearing at all. Given that those notifications are just ads for micro-transactions, their loss likely shan't be lamented.
+- The script should now automatically detect EA App installations of the game on macOS.
+- The mod now keeps track of which mods were installed and patched when the script was last run; when the game loads into the main-menu, the Tiny UI Fix checks if any patched mods have been removed or if any script mods have been added since the script was last run, and if such is the case, the mod displays a dialog warning that the script should be re-run to avoid errors. This check can be disabled via the configurator, should there be any annoying false-positives.
+- A message is now displayed in the PowerShell console when the Tiny UI Fix is uninstalled via the configurator's "Uninstall" button.
+- The configurator no longer fails to open, on macOS, when a port is already in use.
+- A typo which caused the script to search for game packs in `./Applications/The Sims 3 Packs` instead of `/Applications/The Sims 3 Packs`, on macOS, has been corrected.
+- A type which caused the configurator's "Uninstall" button to delete old v1.0.3-and-older-versions of the mod at `Overrides/tiny-tiny-ui-fix.package` instead of `Overrides/tiny-ui-fix.package` has been corrected.
+- Typos which caused the configurator's configuration value inputs to be incorrectly justified have been corrected. 
+
+#### Developer-side
+
+- Warning-promoted-to-error `NU1605` should no longer prevent `Mono.Cecil` from building.
+- `ReactToInitialisationOfMainMenu` has been moved from the `WindowAttachmentHooks` class to a new `MainMenuHooks` class.
+- Some stray debugging code was removed from `TinyUIFixForTS3Patcher.cs`.
+
 ### Version 1.3.4
 
 #### User-facing
