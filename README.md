@@ -125,6 +125,16 @@ Such a patch is included with the Tiny UI Fix for the NRaas Industries suite of 
 
 If you are a mod author and you would like to make your mod compatible with the Tiny UI Fix's UI scaling, A—thank you :), B—please see the [For mod authors section of this document](#for-mod-authors).
 
+## Other functionality/features
+
+When the game loads into the main-menu, the Tiny UI Fix will check if any patched mods have been removed or if any script mods have been added since the last time the Tiny UI Fix's script was run.
+If any patched mods _have_ been removed or any script mods _have_ been added, the Tiny UI Fix will display a dialog warning that the Tiny UI Fix's script should be re-run. \
+This is to avoid errors stemming from script mods being only partially installed, as not all package resources are copied into the Tiny UI Fix's generated package.
+
+When "Shop Mode" is enabled in the game's General Options, the Tiny UI Fix prevents the "Popular Store Items" notification and other Store notifications from appearing when Buy/Build mode is opened.
+This is prevent an issue wherein the game becomes unable to re-enter Live mode after entering Buy/Build mode. \
+Those notifications are just ads for micro-transactions, so their loss isn't too lamentable.
+
 ## Known issues
 
 - Some icons and graphics are visually stretched in one dimension.
