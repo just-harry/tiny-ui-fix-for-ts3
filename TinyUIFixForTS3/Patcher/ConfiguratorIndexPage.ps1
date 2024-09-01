@@ -89,19 +89,24 @@ $MinimumPatchsetLoadOrderPosition = 2
 				display: contents;
 			}
 
-			.label-grid > label > :nth-child(1)
+			.label-grid > label:not(.checkbox) > :nth-child(1)
 			{
 				grid-column: 1;
 			}
 
-			.label-grid > label > :nth-child(2)
+			.label-grid > label:not(.checkbox) > :nth-child(2)
 			{
 				grid-column: 2;
 			}
 
-			.label-grid > label > :nth-child(3)
+			.label-grid > label:not(.checkbox) > :nth-child(3)
 			{
 				grid-column: 3;
+			}
+
+			.label-grid > label.checkbox > :nth-child(1)
+			{
+				grid-column: 1 / 4;
 			}
 
 			.with-units
