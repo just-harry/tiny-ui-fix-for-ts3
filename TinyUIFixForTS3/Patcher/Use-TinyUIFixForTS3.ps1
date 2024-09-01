@@ -5912,7 +5912,7 @@ try
 
 	$UninstallTinyUIFix = `
 	{
-		$OldGeneratedPackageFilePath = Join-Path $OverridesPath tiny-tiny-ui-fix.package
+		$OldGeneratedPackageFilePath = Join-Path $OverridesPath tiny-ui-fix.package
 		<# Version 1.0.3-and-older of this mod stored the package in the Overrides folder,
 		   so we delete it also to ensure that old installations are uninstalled. #>
 		Remove-Item -LiteralPath $OldGeneratedPackageFilePath -Force -ErrorAction Ignore
