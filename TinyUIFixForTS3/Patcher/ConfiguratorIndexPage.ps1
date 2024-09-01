@@ -89,17 +89,17 @@ $MinimumPatchsetLoadOrderPosition = 2
 				display: contents;
 			}
 
-			label-grid > label > :nth-child(1)
+			.label-grid > label > :nth-child(1)
 			{
 				grid-column: 1;
 			}
 
-			label-grid > label > :nth-child(2)
+			.label-grid > label > :nth-child(2)
 			{
 				grid-column: 2;
 			}
 
-			label-grid > label > :nth-child(2)
+			.label-grid > label > :nth-child(3)
 			{
 				grid-column: 3;
 			}
