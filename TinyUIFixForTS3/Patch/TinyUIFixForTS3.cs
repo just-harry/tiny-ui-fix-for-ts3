@@ -12,7 +12,9 @@ using Sims3.UI;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
+using System.Text;
 
 using TinyUIFixForTS3CoreBridge;
 
@@ -241,6 +243,209 @@ namespace TinyUIFixForTS3
 
 		public static FloatGetter getUIScale = () => 1f;
 	}
+
+	public static class PatchingState
+	{
+		public struct ModFingerprint
+		{
+			public string fileName;
+			public ResourceKey[] resourceKeys;
+			public bool hasAssemblies;
+		}
+
+		public static Dictionary<string, ModFingerprint> GetModFingerprints ()
+		{
+			var fingerprints = new Dictionary<string, ModFingerprint>();
+
+			var fingerprintingData = ScriptCore.CASUtils.CASUtils_GetColorInfoBytesImpl(
+				new ResourceKey(0x746ffaa252105165, 0x00000000, 2223337553)
+			);
+
+			var stream = new MemoryStream(fingerprintingData);
+			var binary = new BinaryReader(stream, new UnicodeEncoding(false, false, false));
+
+			stream.Position = 4;
+			long fingerprintedModsTableOffset = binary.ReadInt32();
+			var lastFingerprintedModsTableOffset = fingerprintedModsTableOffset;
+
+			for (;;)
+			{
+				stream.Position = lastFingerprintedModsTableOffset;
+
+				var fileNameLength = binary.ReadInt32();
+
+				if (fileNameLength == 0)
+				{
+					break;
+				}
+
+				var fileName = new char[fileNameLength];
+				binary.Read(fileName, 0, fileNameLength);
+
+				var resourceKeysOffset = binary.ReadInt32();
+				var resourceKeysLength = binary.ReadInt32();
+				var hasAssemblies = binary.ReadByte();
+
+				lastFingerprintedModsTableOffset = stream.Position;
+
+				var resourceKeysCount = resourceKeysLength >> 4;
+				var resourceKeys = new ResourceKey[resourceKeysCount];
+
+				stream.Position = resourceKeysOffset;
+
+				for (int index = 0; index < resourceKeysCount; ++index)
+				{
+					resourceKeys[index] = new ResourceKey{
+						InstanceId = binary.ReadUInt64(),
+						TypeId = binary.ReadUInt32(),
+						GroupId = binary.ReadUInt32()
+					};
+				}
+
+				var fileNameString = new string(fileName);
+
+				fingerprints[fileNameString] = new ModFingerprint{
+					fileName = fileNameString,
+					resourceKeys = resourceKeys,
+					hasAssemblies = hasAssemblies != 0
+				};
+			}
+
+			return fingerprints;
+		}
+
+		public static bool runtimeMismatchDetectionHasRunFromMainMenu;
+
+		public struct RuntimeMismatchReport
+		{
+			public Dictionary<string, string> removedMods;
+			public Dictionary<string, string> addedMods;
+			public uint timeTakenMicroseconds;
+		}
+
+		public static void DetectAndShowRuntimeModMismatchFromMainMenu ()
+		{
+			if (runtimeMismatchDetectionHasRunFromMainMenu)
+			{
+				return;
+			}
+
+			runtimeMismatchDetectionHasRunFromMainMenu = true;
+
+			var mismatch = DetectRuntimeModMismatch();
+
+			if (mismatch.removedMods.Count == 0 && mismatch.addedMods.Count == 0)
+			{
+				return;
+			}
+
+			Simulator.AddObject(new OneShotFunctionWithParams(ShowRuntimeModMismatch, mismatch));
+		}
+
+		public static void ShowRuntimeModMismatch (object mismatchReport)
+		{
+			var mismatch = (RuntimeMismatchReport) mismatchReport;
+
+			var message = new StringBuilder();
+			message.Append("It appears as though the installed mods have changed\nsince the Tiny UI Fix's script was last run.\n\nIt is recommended that you close the game and\nre-run the Tiny UI Fix's script\nto avoid errors.");
+
+			if (mismatch.removedMods.Count > 0)
+			{
+				message.Append("\n\nThese uninstalled mods will still be active(!!!),\nbecause they are still present in the Tiny UI Fix's package:");
+
+				foreach (var mod in mismatch.removedMods.Values)
+				{
+					message.Append("\n    * ").Append(mod);
+				}
+			}
+
+			if (mismatch.addedMods.Count > 0)
+			{
+				message.Append("\n\nThese newly-installed mods may have an unscaled UI,\nbecause the Tiny UI Fix has not had a chance\nto make a patched copy of them:");
+
+				foreach (var mod in mismatch.addedMods.Values)
+				{
+					message.Append("\n    * ").Append(mod);
+				}
+			}
+
+			message.Append("\n\n").Append("This check took ").Append((mismatch.timeTakenMicroseconds / 1000f).ToString("F2")).Append(" milliseconds.\n\n");
+
+			var dialog = new Sims3.UI.GameEntry.ModInfoDialog(new string[0]);
+			var title = dialog.mModalDialogWindow.GetChildByID(0x099e4ed0, true);
+
+			if (title != null) (title as Text).Caption = "Tiny UI Fix Notice";
+
+			dialog.mTextEdit.MaxTextLength = 4194304;
+			dialog.mTextEdit.HScrollbarEnabled = TextEdit.ScrollbarEnabled.AsNeeded;
+			dialog.mTextEdit.WrapMode = TextEdit.WrapModes.SingleLine;
+			dialog.mTextEdit.Caption = message.ToString();
+			dialog.mTextEdit.CursorIndex = 0;
+
+			var screenArea = UIManager.ScreenArea;
+
+			dialog.mModalDialogWindow.Area = screenArea;
+
+			dialog.StartModal();
+			dialog.Dispose();
+		}
+
+		public static RuntimeMismatchReport DetectRuntimeModMismatch ()
+		{
+			var stopWatch = StopWatch.Create(StopWatch.TickStyles.Microseconds);
+			stopWatch.Start();
+
+			var fingerprints = GetModFingerprints();
+			var patchedMods = new Dictionary<string, ModFingerprint>(fingerprints.Count);
+
+			foreach (var mod in fingerprints.Values)
+			{
+				patchedMods[mod.fileName.ToUpperInvariant()] = mod;
+			}
+
+			var modFileCount = (int) GameUtils.GetModFilesCount();
+			var activeMods = new Dictionary<string, string>(modFileCount);
+
+			for (int index = 0; index < modFileCount; ++index)
+			{
+				var fileName = GameUtils.GetModFilesName((uint) index);
+
+				if (string.IsNullOrEmpty(fileName)) continue;
+
+				activeMods[fileName.Replace('\\', '/').ToUpperInvariant()] = fileName;
+			}
+
+			var removedMods = new Dictionary<string, string>();
+			var addedMods = new Dictionary<string, string>();
+
+			foreach (var patchedMod in patchedMods)
+			{
+				foreach (var resourceKey in patchedMod.Value.resourceKeys)
+				{
+					if (!ScriptCore.World.World_ResourceExistsImpl(resourceKey))
+					{
+						removedMods[patchedMod.Key] = patchedMod.Value.fileName;
+
+						break;
+					}
+				}
+			}
+
+			foreach (var activeMod in activeMods)
+			{
+				if (!patchedMods.ContainsKey(activeMod.Key))
+				{
+					addedMods[activeMod.Key] = activeMod.Value;
+				}
+			}
+
+			stopWatch.Stop();
+			var timeTaken = stopWatch.GetElapsedTime();
+			stopWatch.Dispose();
+
+			return new RuntimeMismatchReport{removedMods = removedMods, addedMods = addedMods, timeTakenMicroseconds = timeTaken};
+		}
+	}
 }
 
 
@@ -451,8 +656,9 @@ namespace TinyUIFixForTS3.UI
 		public static void ReactToInitialisationOfMainMenu ()
 		{
 			ControlReplacement.ControlReplacementEventHandler.SetUpUITopWindowEvents();
-		}
 
+			PatchingState.DetectAndShowRuntimeModMismatchFromMainMenu();
+		}
 	}
 
 	public static class WindowAttachmentHooks

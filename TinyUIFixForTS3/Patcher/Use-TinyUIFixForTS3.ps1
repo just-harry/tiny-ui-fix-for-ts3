@@ -1229,6 +1229,7 @@ $TinyUIFixPSForTS3ResourceKeys = @{
 	TinyUIFixForTS3ScaledHorizontalScrollbarMimic = $Null
 	TinyUIFixForTS3ScaledVerticalSliderMimic = $Null
 	TinyUIFixForTS3ScaledHorizontalSliderMimic = $Null
+	TinyUIFixForTS3ModFingerprintingData = $Null
 }
 
 
@@ -2171,6 +2172,7 @@ function Initialize-TinyUIFixResourceKeys
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalScrollbarMimic = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0xcd5e4225f2eec646 -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledVerticalSliderMimic = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0x92e4874f8b9f3d39 -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalSliderMimic = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0xb30738093abb4eab -band [UInt64]::MaxValue)
+	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ModFingerprintingData = [s3pi.Interfaces.TGIBlock]::new(1, $Null, 0x00000000, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0x746ffaa252105165 -band [UInt64]::MaxValue)
 }
 
 if ($Null -ne ([Management.Automation.PSTypeName] 's3pi.Interfaces.TGIBlock').Type)
@@ -2762,7 +2764,7 @@ function Append-Instruction
 }
 
 
-function Apply-PatchToTinyUIFixForTS3Assembly ([Mono.Cecil.AssemblyDefinition] $Assembly, [Float] $UIScale)
+function Apply-PatchToTinyUIFixForTS3Assembly ([Mono.Cecil.AssemblyDefinition] $Assembly, [Float] $UIScale, [Bool] $DisableRuntimeModMismatchCheck)
 {
 	$UIScalingType = $Assembly.MainModule.GetType('TinyUIFixForTS3.UIScaling')
 	$GetUIScale = Find-StaticMethod $UIScalingType GetUIScale
@@ -2775,6 +2777,27 @@ function Apply-PatchToTinyUIFixForTS3Assembly ([Mono.Cecil.AssemblyDefinition] $
 			{
 				$Instruction.Operand = [Float] $UIScale
 			}
+		}
+	}
+
+	$PatchingStateType = $Assembly.MainModule.GetType('TinyUIFixForTS3.PatchingState')
+
+	if ($DisableRuntimeModMismatchCheck)
+	{
+		Edit-MethodBody (Find-StaticMethod $PatchingStateType DetectAndShowRuntimeModMismatchFromMainMenu) `
+		{
+			$IL.Body.Instructions.Clear()
+			$IL.Body.Variables.Clear()
+			$IL.Body.ExceptionHandlers.Clear()
+			$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ret)
+		}
+
+		Edit-MethodBody (Find-StaticMethod $PatchingStateType ShowRuntimeModMismatch System.Object) `
+		{
+			$IL.Body.Instructions.Clear()
+			$IL.Body.Variables.Clear()
+			$IL.Body.ExceptionHandlers.Clear()
+			$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ret)
 		}
 	}
 }

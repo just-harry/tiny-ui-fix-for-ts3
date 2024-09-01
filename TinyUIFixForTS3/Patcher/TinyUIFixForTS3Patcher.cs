@@ -1579,6 +1579,25 @@ namespace TinyUIFixForTS3Patcher
 				byCondition = foundByCondition
 			};
 		}
+
+		public static void AppendResourceKeysTo <IResourceKey, IPackage> (
+			Stream stream,
+			IPackage package,
+			Func<IPackage, IEnumerable<IResourceKey>> getResourceListOfPackage,
+			Func<IResourceKey, ulong> getInstanceOfResourceKey,
+			Func<IResourceKey, uint> getResourceTypeOfResourceKey,
+			Func<IResourceKey, uint> getResourceGroupOfResourceKey
+		)
+		{
+			var binary = new BinaryWriter(stream, new UnicodeEncoding(false, false, false));
+
+			foreach (var entry in getResourceListOfPackage(package))
+			{
+				binary.Write(getInstanceOfResourceKey(entry));
+				binary.Write(getResourceTypeOfResourceKey(entry));
+				binary.Write(getResourceGroupOfResourceKey(entry));
+			}
+		}
 	}
 
 	public static class AssemblyScaling

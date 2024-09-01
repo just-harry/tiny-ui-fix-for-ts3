@@ -18,6 +18,7 @@ $PatchsetDefinitionSchemaVersion = 1
 
 	EffectiveUIScale = [Float] 1
 	EffectiveTextScale = [Float] 1
+	EffectiveDisableRuntimeModMismatchCheck = $False
 
 	MakeDefaultConfiguration = `
 	{
@@ -69,8 +70,27 @@ $PatchsetDefinitionSchemaVersion = 1
 			}
 		}
 
+		$State.Configuration.Nucleus.DisableRuntimeModMismatchCheck = if ($Null -eq $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck)
+		{
+			$False
+		}
+		else
+		{
+			try
+			{
+				[Bool] $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck
+			}
+			catch
+			{
+				$State.Logger.WriteWarning("The value of `"$($State.Configuration.Nucleus.DisableRuntimeModMismatchCheck)`" for Nucleus.DisableRuntimeModMismatchCheck couldn't be coerced to a boolean, so it's being defaulted to a value of false.")
+
+				$False
+			}
+		}
+
 		$Self.EffectiveUIScale = $State.Configuration.Nucleus.UIScale
 		$Self.EffectiveTextScale = if ($Null -ne $State.Configuration.Nucleus.TextScale) {$State.Configuration.Nucleus.TextScale} else {$State.Configuration.Nucleus.UIScale}
+		$Self.EffectiveDisableRuntimeModMismatchCheck = $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 	}
 
 	RegisterResourcesToFind = `
@@ -86,6 +106,8 @@ $PatchsetDefinitionSchemaVersion = 1
 			Param ($Self, $State)
 
 			$DataPath = Join-Path $State.Paths.Root Data
+			$ModsPath = Join-Path $State.InstallationState.Sims3UserDataPath Mods
+
 			$UIScale = $State.Configuration.Nucleus.UIScale
 
 			$TinyUIFixForTS3XMLStream = [IO.MemoryStream]::new([IO.File]::ReadAllBytes((Join-Path $DataPath TinyUIFixForTS3.xml)))
@@ -94,7 +116,7 @@ $PatchsetDefinitionSchemaVersion = 1
 
 			$TinyUIFixForTS3 = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($TinyUIFixForTS3DLLStream)
 
-			Apply-PatchToTinyUIFixForTS3Assembly $TinyUIFixForTS3 $UIScale
+			Apply-PatchToTinyUIFixForTS3Assembly $TinyUIFixForTS3 $UIScale $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 
 			$TinyUIFixForTS3.Write()
 
@@ -109,6 +131,101 @@ $PatchsetDefinitionSchemaVersion = 1
 			$TinyUIFixForTS3XML = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::_XMLTypeID)
 			$TinyUIFixForTS3XMLStream.CopyTo($TinyUIFixForTS3XML.Stream)
 			$TinyUIFixForTS3XML.Stream.Position = 0
+
+			$State.Logger.WriteInfo('Collating mod fingerprints.')
+
+			$FingerprintedModsTable = [Ordered] @{}
+			$ModFingerprintingData = [IO.MemoryStream]::new(64KB)
+			$ModFingerprintingBinary = [IO.BinaryWriter]::new($ModFingerprintingData, [Text.UnicodeEncoding]::new($False, $False, $False))
+
+			<# A presently-unused header, just in case :) #>
+			$ModFingerprintingBinary.Write([UInt32] 0)
+			<# The offset of the fingerprinted mods table. #>
+			$ModFingerprintingBinary.Write([UInt32] 0)
+
+			$GetResourceListOfPackage = [Delegate]::CreateDelegate([Func[s3pi.Interfaces.IPackage, Collections.Generic.IEnumerable[s3pi.Interfaces.IResourceKey]]], [s3pi.Interfaces.IPackage].GetProperty('GetResourceList').GetMethod)
+			$GetInstanceOfResourceKey = [Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt64]], [s3pi.Interfaces.IResourceKey].GetProperty('Instance').GetMethod)
+			$GetResourceTypeOfResourceKey = [Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceType').GetMethod)
+			$GetResourceGroupOfResourceKey = [Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceGroup').GetMethod)
+
+			$Offset = $ModFingerprintingData.Position
+
+			foreach (
+				$ResourceKey in @($TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3DLL, $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3CoreBridge, $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3XML, $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledVerticalScrollbarMimic, $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalScrollbarMimic, $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledVerticalSliderMimic, $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalSliderMimic, $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ModFingerprintingData)
+			)
+			{
+				$ModFingerprintingBinary.Write($ResourceKey.Instance)
+				$ModFingerprintingBinary.Write($ResourceKey.ResourceType)
+				$ModFingerprintingBinary.Write($ResourceKey.ResourceGroup)
+			}
+
+			$Length = $ModFingerprintingData.Position - $Offset
+
+			$FingerprintedModsTable[[TinyUIFixPSForTS3]::GeneratePackagePackedFileDirective] = [ValueTuple[Int32, Int32, Byte]]::new($Offset, $Length, [Byte] 1)
+
+			foreach ($Entry in $State.UnpatchedResourcesByPackage.GetEnumerator())
+			{
+				$Path = $Entry.Key.ToString()
+
+				if (-not $Path.StartsWith($ModsPath, [StringComparison]::OrdinalIgnoreCase))
+				{
+					continue
+				}
+
+				$SubPath = $Path.Substring($ModsPath.Length + 1)
+
+				if ([IO.Path]::DirectorySeparatorChar -ceq '\')
+				{
+					$SubPath = $SubPath.Replace([Char] '\', [Char] '/')
+				}
+
+				$HasAssemblies = $Entry.Value.ByResourceType[[TinyUIFixPSForTS3]::S3SATypeID].Count -gt 0
+
+				$Offset = $ModFingerprintingData.Position
+
+				[TinyUIFixPSForTS3]::UseDisposable(
+					{[s3pi.Package.Package]::OpenPackage(1, $Entry.Key)},
+					{
+						Param ($Package)
+
+						[TinyUIFixForTS3Patcher.ResourceManipulator]::AppendResourceKeysTo(
+							$ModFingerprintingData,
+							$Package,
+							$GetResourceListOfPackage,
+							$GetInstanceOfResourceKey,
+							$GetResourceTypeOfResourceKey,
+							$GetResourceGroupOfResourceKey
+						)
+					},
+					{Param ($Package) [s3pi.Package.Package]::ClosePackage(1, $Package)}
+				)
+
+				$Length = $ModFingerprintingData.Position - $Offset
+
+				$FingerprintedModsTable[$SubPath] = [ValueTuple[Int32, Int32, Byte]]::new($Offset, $Length, [Byte] $HasAssemblies)
+			}
+
+			$FingerprintedModsTableOffset = $ModFingerprintingData.Position
+			$ModFingerprintingData.Position = 4
+			$ModFingerprintingBinary.Write([Int32] $FingerprintedModsTableOffset)
+			$ModFingerprintingData.Position = $FingerprintedModsTableOffset
+
+			foreach ($Mod in $FingerprintedModsTable.GetEnumerator())
+			{
+				$ModFingerprintingBinary.Write($Mod.Key.Length)
+				$ModFingerprintingBinary.Write($Mod.Key.ToCharArray())
+				$ModFingerprintingBinary.Write($Mod.Value.Item1)
+				$ModFingerprintingBinary.Write($Mod.Value.Item2)
+				$ModFingerprintingBinary.Write($Mod.Value.Item3)
+			}
+
+			<# The terminator of the fingerprinted mods table. #>
+			$ModFingerprintingBinary.Write(0)
+
+			$TinyUIFixForTS3ModFingerprintingData = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x00000000')
+			$ModFingerprintingData.Position = 0
+			$ModFingerprintingData.CopyTo($TinyUIFixForTS3ModFingerprintingData.Stream)
+			$TinyUIFixForTS3ModFingerprintingData.Stream.Position = 0
 
 			$XMLWritingSettings = [Xml.XmlWriterSettings]::new()
 			$XMLWritingSettings.Indent = $True
@@ -145,6 +262,7 @@ $PatchsetDefinitionSchemaVersion = 1
 					@{Resource = & $LayoutResource ScaledHorizontalScrollbarMimic.xml; ResourceKey = $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalScrollbarMimic}
 					@{Resource = & $LayoutResource ScaledVerticalSliderMimic.xml; ResourceKey = $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledVerticalSliderMimic}
 					@{Resource = & $LayoutResource ScaledHorizontalSliderMimic.xml; ResourceKey = $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalSliderMimic}
+					@{Resource = $TinyUIFixForTS3ModFingerprintingData; ResourceKey = $TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ModFingerprintingData}
 				)
 			}
 		}
