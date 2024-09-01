@@ -1442,13 +1442,6 @@ namespace TinyUIFixForTS3Patcher
 
 	public static class ResourceManipulator
 	{
-		static Dictionary<uint, uint> testDictionary;
-
-		static ResourceManipulator ()
-		{
-			testDictionary = new Dictionary<uint, uint>();
-		}
-
 		public struct FoundResources <IResourceKey, ConstructableResourceKey>
 		where ConstructableResourceKey : IResourceKey
 		{
