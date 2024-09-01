@@ -23,6 +23,7 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 			Param ($Self, $State)
 
 			$UI = $State.Assemblies.Resolver.Resolve($State.Assemblies.AssemblyKeysByResourceKey[$TinyUIFixPSForTS3ResourceKeys.UIDLL])
+			$GameplaySystems = $State.Assemblies.Resolver.Resolve($State.Assemblies.AssemblyKeysByResourceKey[$TinyUIFixPSForTS3ResourceKeys.Sims3GameplaySystemsDLL])
 
 			$ConvenientPatches = @{
 				$TinyUIFixPSForTS3ResourceKeys.UIDLL = @{
@@ -422,7 +423,7 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 			}
 
 			$PatchCount = ($ConvenientPatches.Values.ForEach{$_.Patches.Count} | Measure-Object -Sum).Sum
-			$State.Logger.WriteInfo("Applying $($PatchCount + 1) patches to the vanilla core DLLs.")
+			$State.Logger.WriteInfo("Applying $($PatchCount + 2) patches to the vanilla core DLLs.")
 
 			$ConvenientlyAppliedPatches = Apply-ConvenientPatchesToAssemblies $ConvenientPatches $State.Assemblies.Resolver $State.Assemblies.AssemblyKeysByResourceKey
 
@@ -470,6 +471,20 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 					}
 				}
 				while ($Instruction = $Instruction.Next)
+			}
+
+			<# For some reason, when the store notifications that this method adds are dismissed
+			   they cause the runtime to commit Sudoku and the game is then unable to re-enter
+			   Live mode from Buy/Build mode.
+			   I've been unsuccessful in figuring out the root cause for this, but these notifications
+			   are really just annoying ads for micro-transactions, so I'm just going to disable them so
+			   that they can't be dismissed in the first place.
+
+			   ¯\_(ツ)_/¯, sue me. #>
+			Edit-MethodBody (Find-MethodByFullyQualifiedName $GameplaySystems.MainModule 'System.Void Sims3.Gameplay.UI.BuildBuyModel::AddStoreTNSMessages()') `
+			{
+				<# Not happenin' on my watch, bud. #>
+				$IL.InsertBefore($StartOfIL, [Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ret))
 			}
 
 			@{PatchedAssemblies = $ConvenientlyAppliedPatches}
