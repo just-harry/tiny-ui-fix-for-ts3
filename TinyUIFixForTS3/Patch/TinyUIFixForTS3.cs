@@ -161,7 +161,7 @@ namespace TinyUIFixForTS3
 		public static void Hook (Type type)
 		{
 			SetHookField(type, "reactToRetrievedWindowInstanceAddedToCache", typeof(UI.WindowAttachmentHooks).GetMethod("ReactToRetrievedWindowInstanceAddedToCache", BindingFlags.Public | BindingFlags.Static));
-			SetHookField(type, "reactToInitialisationOfMainMenu", typeof(UI.WindowAttachmentHooks).GetMethod("ReactToInitialisationOfMainMenu", BindingFlags.Public | BindingFlags.Static));
+			SetHookField(type, "reactToInitialisationOfMainMenu", typeof(UI.MainMenuHooks).GetMethod("ReactToInitialisationOfMainMenu", BindingFlags.Public | BindingFlags.Static));
 		}
 
 		private static void SetHookField (Type type, string fieldName, MethodInfo method)
@@ -446,13 +446,17 @@ namespace TinyUIFixForTS3.UI
 		};
 	}
 
-	public static class WindowAttachmentHooks
+	public static class MainMenuHooks
 	{
 		public static void ReactToInitialisationOfMainMenu ()
 		{
 			ControlReplacement.ControlReplacementEventHandler.SetUpUITopWindowEvents();
 		}
 
+	}
+
+	public static class WindowAttachmentHooks
+	{
 		public static void ReactToRetrievedWindowInstanceAddedToCache (WindowBase window)
 		{
 			if (window is Scrollbar || window is Slider || window is TextEdit)
