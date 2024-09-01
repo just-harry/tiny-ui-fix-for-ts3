@@ -32,6 +32,7 @@ dotnet `
 	build `
 	"-c=$Configuration" `
 	"-p:TargetFramework=$TargetFramework" `
+	"-p:NoWarn=$(if ($PSNativeCommandArgumentPassing -eq 'Legacy') {'\'})`"NU1605;0649$(if ($PSNativeCommandArgumentPassing -eq 'Legacy') {'\'})`"" `
 	$CecilPath `
 | Write-Host
 
