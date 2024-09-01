@@ -607,7 +607,8 @@ enum TinyUIFixForTS3Sims3InstallationType
 {
 	Windows
 	MacOS32Bit
-	MacOS64Bit
+	MacOS64BitOrigin
+	MacOS64BitEAApp
 	OtherOperatingSystems
 }
 
@@ -823,12 +824,28 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 {
 	$PossibleSims3Paths = if ($Null -eq $OverrideSims3Path)
 	{
-		Join-Path $Global:HOME 'Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app'
-		Join-Path $Global:HOME 'Applications/The Sims 3.app/Contents/Resources/The Sims 3.app'
-		Join-Path $Global:HOME 'Applications/The Sims 3.app'
-		'/Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app'
-		'/Applications/The Sims 3.app/Contents/Resources/The Sims 3.app'
-		'/Applications/The Sims 3.app'
+		$EAAppUserINIs = Get-ChildItem -File -LiteralPath (Join-Path $Global:HOME 'Library/Application Support/Electronic Arts/EA app') -Filter user_*.ini
+
+		if ($EAAppUserINIs)
+		{
+			$EAAppUserINIs | % `
+			{
+				(
+					Get-ValuesFromINI (Get-Content -LiteralPath $_ -Encoding UTF8 -ErrorAction Continue)
+				)[[String]::Empty]['user.downloadinplacedir']
+			} `
+			| ? {$Null -ne $_} `
+			| Select-Object -Unique `
+			| % {[ValueTuple[String, Bool]]::new($_, $True)}
+		}
+
+		[ValueTuple[String, Bool]]::new('/Applications/EA Games', $True)
+		[ValueTuple[String, Bool]]::new((Join-Path $Global:HOME 'Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app'), $False)
+		[ValueTuple[String, Bool]]::new((Join-Path $Global:HOME 'Applications/The Sims 3.app/Contents/Resources/The Sims 3.app'), $False)
+		[ValueTuple[String, Bool]]::new((Join-Path $Global:HOME 'Applications/The Sims 3.app'), $False)
+		[ValueTuple[String, Bool]]::new('/Applications/Sims3Launcher.app/Contents/Resources/The Sims 3.app', $False)
+		[ValueTuple[String, Bool]]::new('/Applications/The Sims 3.app/Contents/Resources/The Sims 3.app', $False)
+		[ValueTuple[String, Bool]]::new('/Applications/The Sims 3.app', $False)
 	}
 	else
 	{
@@ -858,16 +875,20 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 		{Param ($Installation) ([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3UserDataPath)).FullName}
 	}
 
-	foreach ($Path in $PossibleSims3Paths)
+	:PossibleSims3PathsLoop foreach ($Path in $PossibleSims3Paths)
 	{
+		$IsEAAppPath = $Path.Item2
+		$Path = $Path.Item1
+
 		if (-not (Test-Path -LiteralPath $Path))
 		{
 			continue
 		}
 
-		$TransgamingPath = Join-Path $Path Contents/Resources/transgaming
-
-		if (Test-Path -PathType Container -LiteralPath $TransgamingPath)
+		if (
+			     -not $IsEAAppPath `
+			-and (Test-Path -PathType Container -LiteralPath ($TransgamingPath = Join-Path $Path Contents/Resources/transgaming))
+		)
 		{
 			if ($Null -eq $32BitVersion)
 			{
@@ -955,15 +976,36 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 					$InstallerData.SelectSingleNode('/plist/dict/key[text() = "Locale"]/following-sibling::string/text()').Value
 				}
 
-				$BaseGame = [PSCustomObject] @{Path = $Path; Locale = $Locale}
+				$BaseGamePath = if ($IsEAAppPath)
+				{
+					$EAAppBaseGamePath = @(
+						(Join-Path $Path 'Sims3Launcher.app/Contents/Resources/The Sims 3.app'),
+						(Join-Path $Path 'The Sims 3.app/Contents/Resources/The Sims 3.app'),
+						(Join-Path $Path 'The Sims 3.app')
+					).Where({Test-Path -LiteralPath $_}, 'First')[0]
+
+					if ($Null -eq $EAAppBaseGamePath)
+					{
+						continue PossibleSims3PathsLoop
+					}
+
+					$EAAppBaseGamePath
+				}
+				else
+				{
+					$Path
+				}
+
+				$BaseGame = [PSCustomObject] @{Path = $BaseGamePath; Locale = $Locale}
 
 				$GamePacks = @(
 					if ($Null -eq $OverrideSims3GamePackPaths)
 					{
 						$GamePacksPath = @(
+							$(if ($IsEAAppPath) {Join-Path $Path 'The Sims 3 Packs'}),
 							(Join-Path $Global:HOME 'Applications/The Sims 3 Packs'),
 							'/Applications/The Sims 3 Packs'
-						).Where({Test-Path -PathType Container -LiteralPath $_}, 'First')[0]
+						).Where({$Null -ne $_ -and (Test-Path -PathType Container -LiteralPath $_)}, 'First')[0]
 
 						if ($Null -ne $GamePacksPath)
 						{
@@ -987,7 +1029,9 @@ function Get-Sims3InstallationStateOnMacOS ($OverrideSims3Path, $OverrideSims3Us
 					}
 				)
 
-				$64BitVersion = [PSCustomObject] @{Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit; BaseGame = $BaseGame; Sims3UserDataPath = $Null; GamePacks = $GamePacks}
+				$Type = if ($IsEAAppPath) {[TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp} else {[TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin}
+
+				$64BitVersion = [PSCustomObject] @{Type = $Type; BaseGame = $BaseGame; Sims3UserDataPath = $Null; GamePacks = $GamePacks}
 				$64BitVersion.Sims3UserDataPath = & $GetUserDataPathForInstallation $64BitVersion
 			}
 		}
@@ -2262,13 +2306,25 @@ function Resolve-ResourcePrioritiesForSims3Installation ($InstallationState, [Sc
 
 	[TinyUIFixPSForTS3]::WriteLineQuickly("Checking the game folder at `"$($InstallationState.BaseGame.Path)`".")
 
-	$SharedFolderSuffix = if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/GameData/Shared'} else {'GameData/Shared'}
+	$BaseGameSharedFolderSuffix = if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin -or $InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp) {'Contents/GameData/Shared'} else {'GameData/Shared'}
+	$GamePackSharedFolderSuffix = if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin) {'Contents/GameData/Shared'} else {'GameData/Shared'}
 
-	$GameSharedDirectory = & $ResolveGamePackDirectory (Join-Path $InstallationState.BaseGame.Path $SharedFolderSuffix)
-	$GameBinDirectory = & $ResolveGamePackDirectory (Join-Path $InstallationState.BaseGame.Path $(if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources'} else {'Game/Bin'})) $TransformGameBinResourceCFG
+	$GameSharedDirectory = & $ResolveGamePackDirectory (Join-Path $InstallationState.BaseGame.Path $BaseGameSharedFolderSuffix)
+	$GameBinDirectory = & $ResolveGamePackDirectory (
+		Join-Path $InstallationState.BaseGame.Path $(
+			if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin -or $InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp)
+			{
+				'Contents/Resources'
+			}
+			else
+			{
+				'Game/Bin'
+			}
+		)
+	) $TransformGameBinResourceCFG
 
 	$ResolvedGamePacks = $InstallationState.GamePacks.ForEach{
-		$GamePackPath = Join-Path $_.Path $SharedFolderSuffix
+		$GamePackPath = Join-Path $_.Path $GamePackSharedFolderSuffix
 
 		if (-not (Test-Path -PathType Container -LiteralPath $GamePackPath))
 		{
@@ -4917,7 +4973,7 @@ function New-PatchingState ($InstallationState)
 
 function Test-Sims3Path ($Sims3Path, [TinyUIFixForTS3Sims3InstallationType] $InstallationType)
 {
-	$Null -ne $Sims3Path -and (Test-Path -LiteralPath (Join-Path $Sims3Path $(if ($InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'})))
+	$Null -ne $Sims3Path -and (Test-Path -LiteralPath (Join-Path $Sims3Path $(if ($InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin -or $InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'})))
 }
 
 
@@ -5673,7 +5729,22 @@ try
 
 					if ($Choice -eq 0)
 					{
-						$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit
+						$LauncherChoice = $Host.UI.PromptForChoice(
+							$Null,
+							'Was this installation of The Sims 3 installed via the EA App or via Origin?',
+							('EA &App', 'O&rigin'),
+							0
+						)
+
+						$InstallationState.Type = if ($LauncherChoice -eq 0)
+						{
+							[TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp
+						}
+						else
+						{
+							[TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin
+						}
+
 						'64BitVersion'
 					}
 					else
@@ -5691,7 +5762,7 @@ try
 					{}
 					elseif (-not (Test-Sims3Path $InstallationState.BaseGame.Path $InstallationState.Type))
 					{
-						Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $InstallationState.BaseGame.Path $(if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
+						Write-Warning "That path doesn't seem correct, as no `"$(Join-Path $InstallationState.BaseGame.Path $(if ($InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin -or $InstallationState.Type -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}))`" file could be found at that path."
 					}
 					else
 					{
@@ -5991,9 +6062,18 @@ try
 
 	if ($Null -ne $Script:PSBoundParameters.InstallationPlatform)
 	{
-		if ($InstallationPlatform -eq 'macOS')
+		<# This script recognised an installation-platform of just 'macOS'
+		   before the EA App was introduced to macOS. And, in adherence to Sod's law,
+		   EA App installations differ slightly in directory structure from Origin installations.
+		   So, we have this ambiguity between Origin and the EA App for just 'macOS'
+		   that lingers for backwards-compatibility. #>
+		if ($InstallationPlatform -eq 'macOS' -or $InstallationPlatform -eq 'macOSOrigin')
 		{
-			$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64Bit
+			$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin
+		}
+		elseif ($InstallationPlatform -eq 'macOSEAApp')
+		{
+			$InstallationState.Type = [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp
 		}
 		elseif ($InstallationPlatform -eq 'macOS32Bit')
 		{
@@ -6005,7 +6085,7 @@ try
 		}
 		else
 		{
-			Write-Error "`"$InstallationPlatform`" is not a valid value for the InstallationPlatform parameter. It must be either `"Windows`", `"macOS`", or `"macOS32Bit`"." -ErrorAction Stop
+			Write-Error "`"$InstallationPlatform`" is not a valid value for the InstallationPlatform parameter. It must be either `"Windows`", `"macOS`", `"macOSOrigin`", `"macOSEAApp`", or `"macOS32Bit`"." -ErrorAction Stop
 		}
 	}
 
