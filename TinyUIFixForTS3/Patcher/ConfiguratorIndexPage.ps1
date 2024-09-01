@@ -457,6 +457,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				const importExportZone = configurator.querySelector('[data-import-export-zone]');
 				const uiScaleInput = configurator.querySelector('[data-ui-scale]');
 				const textScaleInput = configurator.querySelector('[data-text-scale]');
+				const disableRuntimeModMismatchCheckInput = configurator.querySelector('[data-disable-runtime-mod-mismatch-check]');
 
 				const handleChangeOfPatchsetLoadOrderPosition = (event, moveFocusWithPatchset) =>
 				{
@@ -608,7 +609,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 					);
 				};
 
-				generatePackageButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/generate-package', {patchsetConfiguration: {Nucleus: {UIScale: uiScaleInput.value, TextScale: textScaleInput.value}}, patchsetLoadOrder: currentLoadOrder().join(' ')}, 'A package is now being generated. Please return to the PowerShell script.'));
+				generatePackageButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/generate-package', {patchsetConfiguration: {Nucleus: {UIScale: uiScaleInput.value, TextScale: textScaleInput.value, DisableRuntimeModMismatchCheck: disableRuntimeModMismatchCheckInput.checked}}, patchsetLoadOrder: currentLoadOrder().join(' ')}, 'A package is now being generated. Please return to the PowerShell script.'));
 				exportLoadOrderButton.addEventListener('click', event => importExportZone.value = currentLoadOrder().join("\r\n"));
 				importLoadOrderButton.addEventListener('click', event => importLoadOrderText(importExportZone.value));
 				checkForUpdatesButton.addEventListener('click', event => sendRequestAndSetFooterStatusMessage('/check-for-updates'));
@@ -661,6 +662,13 @@ $MinimumPatchsetLoadOrderPosition = 2
 										<span class="with-units">
 											<input id="text-scale" type="number" min="0.05" step="0.05" name="text-scale" value="$($State.TextScale)" placeholder="Same as the UI Scale" data-text-scale>
 											<span><abbr title="times">x</abbr></span>
+										</span>
+									</label>
+
+									<label class="checkbox" title="This controls whether or not the Tiny UI Fix will check if any mods have been removed or added since the last time this script was run. If the Tiny UI Fix detects that any mods have been removed or added, it will display a warning pop-up in the main-menu of The Sims 3.">
+										<span>
+											<input type="checkbox" $(if ($State.DisableRuntimeModMismatchCheck) {'checked'}) autocomplete="off" data-disable-runtime-mod-mismatch-check>
+											<span>Disable run-time mod mismatch check?</span>
 										</span>
 									</label>
 								</div>

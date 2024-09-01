@@ -6306,6 +6306,7 @@ try
 			-State @{
 				UIScale = $PatchingState.Configuration.Nucleus.UIScale
 				TextScale = $PatchingState.Configuration.Nucleus.TextScale
+				DisableRuntimeModMismatchCheck = $PatchingState.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 				LoadOrder = $LoadOrder
 				AvailablePatchsets = $AvailablePatchsetsForConfigurator
 			} `
