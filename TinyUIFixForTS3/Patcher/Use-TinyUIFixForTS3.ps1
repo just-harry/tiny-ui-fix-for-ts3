@@ -5443,6 +5443,12 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State, $Actions)
 					Start-JSONResponse (ConvertTo-Json @{Message = $Message})
 
 					Send-Response
+
+					Remove-ConfiguratorMessage
+					[TinyUIFixPSForTS3]::WriteQuicklyWithColour("$Message", $Global:Host.PrivateData.ProgressForegroundColor, $Global:Host.PrivateData.ProgressBackgroundColor)
+					[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
+					[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
+					$ConfiguratorMessageLeft, $ConfiguratorMessageTop = Write-ConfiguratorMessage
 				}
 				elseif ($Context.Request.HttpMethod -eq 'POST' -and $Context.Request.Url.AbsolutePath -eq '/cancel')
 				{
