@@ -1,8 +1,8 @@
 
-[submodule "Dependencies/Cecil"]
+[submodule "dependencies/cecil"]
 	path = Dependencies/Cecil
 	url = https://github.com/jbevain/cecil.git
 
-[submodule "Dependencies/seepssefeu"]
+[submodule "dependencies/seepssefeu"]
 	path = Dependencies/seepssefeu
 	url = https://github.com/just-harry/seepssefeu
