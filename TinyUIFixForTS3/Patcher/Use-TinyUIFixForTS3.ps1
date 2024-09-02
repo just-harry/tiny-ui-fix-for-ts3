@@ -5223,6 +5223,14 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State, $Actions)
 
 	$Listener = $Null
 
+	if ($Script:IsMacOS)
+	{
+		<# macOS has an annoyingly long timeout/wait when a port is already in use,
+		   so, on macOS we'll print a message to assuage the user's potential fear
+		   that the script may have frozen. #>
+		[TinyUIFixPSForTS3]::WriteLineQuickly("Starting the configurator`.`n`n")
+	}
+
 	for (;;)
 	{
 		try
@@ -5240,7 +5248,8 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State, $Actions)
 		{
 			[Console]::TreatControlCAsInput = $OriginalTreatControlCAsInput
 
-			if ($_.Exception.ErrorCode -ne 0x000000B7)
+			<# Of course the error-codes differ between operating-systems, nothing can ever be easy. #>
+			if ($_.Exception.ErrorCode -ne $(if ($Script:IsWindows) {0x000000B7} else {0x00000030}))
 			{
 				throw
 			}
