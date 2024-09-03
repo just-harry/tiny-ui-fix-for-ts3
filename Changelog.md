@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### Version 1.4.2
+
+#### User-facing
+
+- The game's options menu no longer fails to scale when it is the first layout to be scaled (which could happen when a mod altered the options menu).
+
 ### Version 1.4.1
 
 #### User-facing
