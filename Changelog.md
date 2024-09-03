@@ -2,6 +2,14 @@
 
 ## Changelog
 
+### Version 1.4.1
+
+#### User-facing
+
+- The checkboxes and radio-buttons in the game's options menu are no longer stretched. (The monkey's paw curl to this is that now the captions for those checkboxes and radio-buttons no longer contribute to their hit area, which is why they were stretched.)
+- The script should no longer fail to generate a package when a Steam library lacks an `apps` key in Steam's `libraryfolders.vdf` file.
+- A bug which caused the "The configurator is available at the URL:" message to be duplicated, instead of overwritten, when errors were logged, or when configurator's "Uninstall" button was used, has been fixed.
+
 ### Version 1.4.0
 
 #### User-facing
