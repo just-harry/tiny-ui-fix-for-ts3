@@ -43,6 +43,14 @@ namespace TinyUIFixForTS3Patcher
 			stringBuilder = new StringBuilder(60);
 		}
 
+		public static bool IsInitialisedForCurrentThread
+		{
+			get
+			{
+				return stringBuilder != null;
+			}
+		}
+
 		public static Vector4 AreaFromString (string text)
 		{
 			var values = text.Split(',');
@@ -167,7 +175,7 @@ namespace TinyUIFixForTS3Patcher
 
 		public static ScaledLayoutResult ScaleLayoutBy (XmlDocument xml, float multiplier, IEnumerable<ExtraScaler> extraScalers)
 		{
-			if (stringBuilder == null)
+			if (!IsInitialisedForCurrentThread)
 			{
 				InitialiseForCurrentThread();
 			}
