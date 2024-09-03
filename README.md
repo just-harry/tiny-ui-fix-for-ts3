@@ -146,7 +146,8 @@ Those notifications are just ads for micro-transactions, so their loss isn't too
 - Some icons and graphics are visually stretched in one dimension.
 - Some icons disappear when they are selected.
 - Scrollbars that would usually scroll smoothly when the arrows are clicked do not scroll smoothly.
-- The options menu is @#$%&!ed.
+- In the options menu, captions for checkboxes and radio-buttons no longer contribute to their hit area.
+- In the options menu, sliders may fail to upscale at random.
 - When LazyDuchess's Smooth Patch package is active, after scrolling through clothing in Create A Sim, the rows of clothing icons may not snap perfectly back into place.
 - If Windows' "Controlled folder access" setting is enabled, and the Tiny UI Fix script is used to temporarily allow PowerShell to access controlled folders: if multiple instances of the script are run at around the same time, the script that allowed PowerShell to access controlled folders may disallow PowerShell from accessing controlled folders before the other instances of the script have finished writing, which could cause their writing to fail.
 - On macOS, the Tiny UI Fix script may fail to automatically detect EA App installations of The Sims 3 if those installations were installed to a custom location that isn't the EA App's current default installation location.
