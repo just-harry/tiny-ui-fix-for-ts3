@@ -58,6 +58,12 @@ The PowerShell script and its accompanying files can be downloaded as a zip-arch
 Extract that zip-archive to a directory, and then run the script in PowerShell via the `Use-TinyUIFixForTS3.ps1` file at the root of the directory.
 </details>
 
+## Uninstallation
+
+To uninstall the Tiny UI Fix, simply delete the `TinyUIFix` folder in The Sims 3's `Mods` folder.
+
+Alternatively, open the Tiny UI Fix's configurator and press the "Uninstall" button.
+
 ## Animated UI scale comparison at 4K
 
 https://github.com/just-harry/tiny-ui-fix-for-ts3/assets/12306246/7aeed898-2173-4432-a121-6adcc0c11c72
