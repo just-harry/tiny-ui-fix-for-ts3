@@ -697,7 +697,7 @@ function Get-Sims3InstallationStateOnWindows ($OverrideSims3Path, $OverrideSims3
 			-and $Null -ne ($LibraryFolders = try {$LibraryFoldersVDF | ConvertFrom-VDF -ErrorAction Stop} catch {})
 		)
 		{
-			$SteamInstallation = $LibraryFolders.libraryfolders.Values | ? {$_.apps.Contains('47890')} | % `
+			$SteamInstallation = $LibraryFolders.libraryfolders.Values | ? {$Null -ne $_.apps -and $_.apps.Contains('47890')} | % `
 			{
 				if (
 					     $Null -ne ($ManifestVDF = Get-Content -Raw -LiteralPath (Join-Path $_.path steamapps/appmanifest_47890.acf) -ErrorAction Ignore) `
