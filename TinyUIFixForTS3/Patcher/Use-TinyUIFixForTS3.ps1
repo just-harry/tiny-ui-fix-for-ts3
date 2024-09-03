@@ -3340,6 +3340,11 @@ function Apply-PatchesToResources (
 							-and $OptionsDialogLayoutResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
 						)
 						{
+							if (-not [TinyUIFixForTS3Patcher.LayoutScaler]::IsInitialisedForCurrentThread)
+							{
+								[TinyUIFixForTS3Patcher.LayoutScaler]::InitialiseForCurrentThread()
+							}
+
 							Repair-TheOptionsDialogLayout $XML
 						}
 
