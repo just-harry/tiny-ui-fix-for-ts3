@@ -1222,6 +1222,7 @@ $TinyUIFixPSForTS3ResourceKeys = @{
 	Sims3GameplayObjectsDLL = $Null
 	Sims3StoreObjectsDLL = $Null
 	StyleGuideLayout = $Null
+	OptionsDialogLayout = $Null
 	TinyUIFixForTS3DLL = $Null
 	TinyUIFixForTS3CoreBridge = $Null
 	TinyUIFixForTS3XML = $Null
@@ -2165,6 +2166,7 @@ function Initialize-TinyUIFixResourceKeys
 	$TinyUIFixPSForTS3ResourceKeys.Sims3GameplayObjectsDLL = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0xb9c90fdc6793bc0a -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.Sims3StoreObjectsDLL = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0x0cae1c361e05b2b3 -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.StyleGuideLayout = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, 0x00000000, 0x0a5e033d7797bde8 -band [UInt64]::MaxValue)
+	$TinyUIFixPSForTS3ResourceKeys.OptionsDialogLayout = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, 0x00000000, 0xbe899b75f7f9536d -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3DLL = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0x9289ae008066179f -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3CoreBridge = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0x50b4a8b4552640a5 -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3XML = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::_XMLTypeID, 0x00000000, 0xfb0eb7b6db39b53f -band [UInt64]::MaxValue)
@@ -3323,15 +3325,24 @@ function Apply-PatchesToResources (
 
 					if (
 						     $StyleGuideLayoutResourceKey.Instance -eq $IndexEntry.Instance `
-						-and $StyleGuideLayoutResourceKey.ResourceType -eq $IndexEntry.ResourceType `
 						-and $StyleGuideLayoutResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
 					)
 					{
 						return $False
 					}
 
+					$OptionsDialogLayoutResourceKey = $TinyUIFixPSForTS3ResourceKeys.OptionsDialogLayout
+
 					try
 					{
+						if (
+							     $OptionsDialogLayoutResourceKey.Instance -eq $IndexEntry.Instance `
+							-and $OptionsDialogLayoutResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
+						)
+						{
+							Repair-TheOptionsDialogLayout $XML
+						}
+
 						$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Patchsets.Nucleus.Instance.EffectiveUIScale, $State.RegisteredExtraLayoutScalers)
 					}
 					catch
@@ -3677,6 +3688,99 @@ function Apply-PatchesToResources (
 				{[IO.File]::OpenWrite($AssemblyDestination)},
 				{Param ($File) $AssemblyStream.Value.CopyTo($File)}
 			)
+		}
+	}
+}
+
+
+function Repair-TheOptionsDialogLayout ([Xml.XmlDocument] $XML)
+{
+	$Buttons = $XML.SelectNodes('//object[@cls = "Button"]')
+
+	foreach ($Button in $Buttons)
+	{
+		$ButtonType = $Button.SelectSingleNode('./prop[@name = "ButtonType"]')
+
+		if ($Null -ne $ButtonType)
+		{
+			$ButtonTypeInt = [UInt32]::Parse($ButtonType.GetAttribute('value'), [TinyUIFixForTS3Patcher.Parsing]::integerFormat)
+
+			<# A checkbox or a radio-button #>
+			if ($ButtonTypeInt -eq 2 -or $ButtonTypeInt -eq 3)
+			{
+				$UnstretchedSize = if ($ButtonTypeInt -eq 2) {[Float] 28} else {[Float] 22}
+
+				$Area = $Button.SelectSingleNode('./prop[@name = "Area"]')
+
+				if ($Null -ne $Area)
+				{
+					$AreaValue = [TinyUIFixForTS3Patcher.LayoutScaler]::AreaFromString($Area.GetAttribute('value'))
+					$AreaValue.W = $AreaValue.X + $UnstretchedSize
+					$AreaValue.Z = $AreaValue.Y + $UnstretchedSize
+					$Area.SetAttribute('value', [TinyUIFixForTS3Patcher.LayoutScaler]::AreaToString($AreaValue))
+				}
+
+				$CaptionWrap = $Button.SelectSingleNode('./prop[@name = "CaptionWrap"]')
+
+				if ($Null -ne $CaptionWrap)
+				{
+					$CaptionWrap.SetAttribute('value', '0')
+				}
+
+				$CaptionOverflow = $Button.SelectSingleNode('./prop[@name = "CaptionOverflow"]')
+
+				if ($Null -ne $CaptionOverflow)
+				{
+					$CaptionOverflow.SetAttribute('value', '0')
+				}
+
+				$CaptionBorder = $Button.SelectSingleNode('./prop[@name = "CaptionBorder"]')
+
+				if ($Null -eq $CaptionBorder)
+				{
+					$CaptionBorder = $XML.CreateElement('prop')
+					$CaptionBorder.SetAttribute('name', 'CaptionBorder')
+					$CaptionBorder.SetAttribute('propid', '0xeec1d006')
+					$CaptionBorder.SetAttribute('type', 'struct')
+
+					$Button.AppendChild($CaptionBorder) > $Null
+				}
+
+				$CaptionBorderBorders = $CaptionBorder.SelectSingleNode('./struct[@cls = "Borders"]')
+
+				if ($Null -eq $CaptionBorderBorders)
+				{
+					$CaptionBorderBorders = $XML.CreateElement('struct')
+					$CaptionBorderBorders.SetAttribute('cls', 'Borders')
+					$CaptionBorderBorders.SetAttribute('clsid', 'Borders')
+
+					$CaptionBorder.AppendChild($CaptionBorderBorders) > $Null
+				}
+
+				$CaptionBorderBordersLeft = $CaptionBorderBorders.SelectSingleNode('./prop[@name = "Left"]')
+
+				if ($Null -eq $CaptionBorderBordersLeft)
+				{
+					$CaptionBorderBordersLeft = $XML.CreateElement('prop')
+					$CaptionBorderBordersLeft.SetAttribute('name', 'Left')
+					$CaptionBorderBordersLeft.SetAttribute('propid', '1')
+					$CaptionBorderBordersLeft.SetAttribute('type', 'float')
+					$CaptionBorderBordersLeft.SetAttribute('value', '0')
+
+					$CaptionBorderBorders.AppendChild($CaptionBorderBordersLeft) > $Null
+				}
+
+				$CaptionBorderBordersLeftValue = [TinyUIFixForTS3Patcher.LayoutScaler]::ValueFromString(
+					$CaptionBorderBordersLeft.GetAttribute('value')
+				)
+
+				$CaptionBorderBordersLeftValue += $UnstretchedSize
+
+				$CaptionBorderBordersLeft.SetAttribute(
+					'value',
+					[TinyUIFixForTS3Patcher.LayoutScaler]::ValueToString($CaptionBorderBordersLeftValue)
+				)
+			}
 		}
 	}
 }
