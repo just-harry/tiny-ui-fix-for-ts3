@@ -5281,10 +5281,13 @@ function Invoke-Configurator ($DesiredPort, $PageContents, $State, $Actions)
 
 		function Write-ConfiguratorMessage
 		{
+			$Left = [Console]::CursorLeft
+			$Top = [Console]::CursorTop
+
 			[Console]::Write("The configurator is available at the URL: $CurrentConfiguratorPrefix`nYou can:`n`tPress [Enter], or [O] to open the URL in the default web-browser.`n`tOr, open the URL manually.`n`tOr, close the configurator by pressing [Q], [Ctrl+C], or [Ctrl+Z].`n`tOr, cancel the package generation altogether by pressing [Ctrl+D].`n`n")
 
-			[Console]::CursorLeft
-			[Console]::CursorTop
+			$Left
+			$Top
 		}
 
 		function Remove-ConfiguratorMessage
