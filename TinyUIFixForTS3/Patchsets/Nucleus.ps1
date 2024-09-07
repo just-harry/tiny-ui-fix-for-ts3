@@ -188,7 +188,7 @@ $PatchsetDefinitionSchemaVersion = 1
 					{
 						Param ($Package)
 
-						[TinyUIFixForTS3Patcher.ResourceManipulator]::AppendResourceKeysTo(
+						[TinyUIFixForTS3Patcher.ResourceManipulator]::AppendModFingerprintingResourceKeysTo(
 							$ModFingerprintingData,
 							$Package,
 							$GetResourceListOfPackage,

@@ -1588,7 +1588,7 @@ namespace TinyUIFixForTS3Patcher
 			};
 		}
 
-		public static void AppendResourceKeysTo <IResourceKey, IPackage> (
+		public static void AppendModFingerprintingResourceKeysTo <IResourceKey, IPackage> (
 			Stream stream,
 			IPackage package,
 			Func<IPackage, IEnumerable<IResourceKey>> getResourceListOfPackage,
@@ -1601,9 +1601,19 @@ namespace TinyUIFixForTS3Patcher
 
 			foreach (var entry in getResourceListOfPackage(package))
 			{
-				binary.Write(getInstanceOfResourceKey(entry));
-				binary.Write(getResourceTypeOfResourceKey(entry));
-				binary.Write(getResourceGroupOfResourceKey(entry));
+				uint type = getResourceTypeOfResourceKey(entry);
+
+				if (type != 0x0333406C && type != 0x2F7D0004)
+				{
+					continue;
+				}
+
+				ulong instance = getInstanceOfResourceKey(entry);
+				uint group = getResourceGroupOfResourceKey(entry);
+
+				binary.Write(instance);
+				binary.Write(type);
+				binary.Write(group);
 			}
 		}
 	}
