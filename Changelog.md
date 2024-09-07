@@ -2,6 +2,15 @@
 
 ## Changelog
 
+### Version 1.4.3
+
+#### User-facing
+
+- The Build mode catalog grid should no longer have one too many columns.
+- The Tiny UI Fix script is now slightly quicker at finding resources across packages.
+- The runtime mod mismatch check now examines the resource-keys of only XML tuning and PNG UI image resources, to avoid introducing an excessive delay for entering the main menu. (For the author, this change reduced the delay from ~8.5-seconds to ~80-milliseconds).
+This brings the possibility of not detecting non-script mods being uninstalled, but such is relatively harmless. Whereas, script mods will always have at-least one XML tuning resource, so there should be no chance of a false negative for script mods (which is where the real potential of harm lies).
+
 ### Version 1.4.2
 
 #### User-facing
