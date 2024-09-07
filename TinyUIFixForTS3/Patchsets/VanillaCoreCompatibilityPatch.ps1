@@ -59,7 +59,7 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 						('System.Void Sims3.UI.BlueprintController::ResizeGrid(System.UInt32)', @{InstanceFields = 'GRID_ROOM_CONCISE_DIMENSIONS.y', 'MIDDLE_PUCK_MIN_SIZE', 'PUCK_EXTRA', 'SCROLL_BAR_WIDTH'}), # What's going on here?
 						('Sims3.UI.Tooltip Sims3.UI.BlueprintController::Sims3.UI.ITooltippable.CreateTooltip(Sims3.SimIFace.Vector2,Sims3.UI.WindowBase,Sims3.SimIFace.Vector2&)', @{StaticFields = 'Sims3.UI.TooltipManager::TOOLTIP_OFFSET.x', 'Sims3.UI.TooltipManager::TOOLTIP_OFFSET.y'}),
 						('System.Void Sims3.UI.BuildController::ResizeCatalogGrid(Sims3.UI.ItemGrid,System.Int32,Sims3.UI.Window,Sims3.UI.Window,System.Boolean)', @{Floats = 4, 37, 100}),
-						('System.UInt32 Sims3.UI.BuildController::GetNumColumnsToDisplay(Sims3.UI.ItemGrid)', @{Floats = 1, 16}),
+						('System.UInt32 Sims3.UI.BuildController::GetNumColumnsToDisplay(Sims3.UI.ItemGrid)', @{Floats = 16}),
 						('System.Void Sims3.UI.BuildController::SetToolState(Sims3.UI.BuildController/ToolState)', @{Floats = 132, 168}),
 						('System.Void Sims3.UI.BuildController/BuildItemTooltip::.ctor(Sims3.SimIFace.BuildBuy.BuildBuyProduct,System.Boolean,Sims3.SimIFace.ResourceKey,Sims3.SimIFace.CustomContent.ResourceKeyContentCategory)', @{Floats = 25}),
 						('Sims3.UI.Tooltip Sims3.UI.BuildController::Sims3.UI.ITooltippable.CreateTooltip(Sims3.SimIFace.Vector2,Sims3.UI.WindowBase,Sims3.SimIFace.Vector2&)', @{StaticFields = 'Sims3.UI.TooltipManager::TOOLTIP_OFFSET.x', 'Sims3.UI.TooltipManager::TOOLTIP_OFFSET.y'}),
