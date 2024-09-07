@@ -2244,6 +2244,23 @@ class TinyUIFixForTS3PatchsetLogger : TinyUIFixForTS3Logger
 }
 
 
+function New-ResourceKeyConstructor ([String] $MethodName = 'CreateResourceKey')
+{
+	$Method = [Reflection.Emit.DynamicMethod]::new($MethodName, [s3pi.Interfaces.TGIBlock], @([s3pi.Interfaces.IResourceKey]))
+	$Method.InitLocals = $False
+
+	$IL = $Method.GetILGenerator()
+
+	$IL.Emit([Reflection.Emit.OpCodes]::Ldc_I4, 1)
+	$IL.Emit([Reflection.Emit.OpCodes]::Ldnull)
+	$IL.Emit([Reflection.Emit.OpCodes]::Ldarg_0)
+	$IL.Emit([Reflection.Emit.OpCodes]::Newobj, [s3pi.Interfaces.TGIBlock].GetConstructor(@([Int32], [EventHandler], [s3pi.Interfaces.IResourceKey])))
+	$IL.Emit([Reflection.Emit.OpCodes]::Ret)
+
+	$Method
+}
+
+
 function Find-ResourcesAcrossPackages (
 	[Collections.Generic.Dictionary[UInt64, Collections.Generic.IEnumerable[Object]]] $PrioritisedFiles,
 	[IO.DirectoryInfo] $BaseDirectory,
@@ -2252,6 +2269,8 @@ function Find-ResourcesAcrossPackages (
 	[ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]][]] $ByCondition
 )
 {
+	$ConstructResourceKey = New-ResourceKeyConstructor
+
 	[TinyUIFixForTS3Patcher.ResourceManipulator]::FindResourcesAcrossPackages(
 		$PrioritisedFiles,
 		$BaseDirectory,
@@ -2264,7 +2283,7 @@ function Find-ResourcesAcrossPackages (
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt64]], [s3pi.Interfaces.IResourceKey].GetProperty('Instance').GetMethod),
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceType').GetMethod),
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceGroup').GetMethod),
-		[Func[s3pi.Interfaces.IResourceKey, s3pi.Interfaces.TGIBlock]] {Param ($ResourceKey) [s3pi.Interfaces.TGIBlock]::new(1, $Null, $ResourceKey)},
+		$ConstructResourceKey.CreateDelegate([Func[s3pi.Interfaces.IResourceKey, s3pi.Interfaces.TGIBlock]]),
 		[Action[Exception]] {Param ($Exception) Write-Warning (& $FormatError $Exception)}
 	)
 }
