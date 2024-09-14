@@ -4220,7 +4220,7 @@ function Find-InstanceFieldsForGroupedFieldPaths ([Mono.Cecil.TypeDefinition] $I
 }
 
 
-function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.AssemblyScaling+PrimitiveAssemblyResolver] $AssemblyResolver, $AssemblyKeysByResourceKey)
+function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.AssemblyScaling+PrimitiveAssemblyResolver] $AssemblyResolver, $AssemblyKeysByResourceKey, $ScalingFunction)
 {
 	$FloatOccurrenceCounts = [Collections.Generic.Dictionary[Float, UInt32]]::new()
 	$DoubleOccurrenceCounts = [Collections.Generic.Dictionary[Double, UInt32]]::new()
@@ -4250,14 +4250,14 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 			$Module.Types.Add($TinyUIFixForTS3IntegrationType)
 		}
 
-		$GetUIScale = Find-StaticField $TinyUIFixForTS3IntegrationType getUIScale
-		$GetUIScaleType = $GetUIScale.FieldType.Resolve()
-		$GetUIScaleInvoke = Find-InstanceMethod $GetUIScaleType Invoke
+		$GetScale = Find-StaticField $TinyUIFixForTS3IntegrationType $(if ($Null -eq $ScalingFunction) {'getUIScale'} else {$ScalingFunction})
+		$GetScaleType = $GetScale.FieldType.Resolve()
+		$GetScaleInvoke = Find-InstanceMethod $GetScaleType Invoke
 
 		$ScaleFloatOnStack = `
 		{
-			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldsfld, $GetUIScale)
-			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Callvirt, $GetUIScaleInvoke)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldsfld, $GetScale)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Callvirt, $GetScaleInvoke)
 			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Mul)
 		}
 
@@ -4269,8 +4269,8 @@ function Apply-ConvenientPatchesToAssemblies ($Patches, [TinyUIFixForTS3Patcher.
 
 		$ScaleDoubleOnStack = `
 		{
-			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldsfld, $GetUIScale)
-			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Callvirt, $GetUIScaleInvoke)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Ldsfld, $GetScale)
+			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Callvirt, $GetScaleInvoke)
 			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Conv_R8)
 			[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Mul)
 		}
