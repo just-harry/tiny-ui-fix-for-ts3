@@ -281,8 +281,6 @@ $MinimumPatchsetLoadOrderPosition = 2
 			.available-patchsets-list > li > :nth-child(2)
 			{
 				flex-grow: 1;
-
-				max-height: 12ch;
 				overflow-y: auto;
 			}
 
