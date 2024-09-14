@@ -2286,7 +2286,7 @@ function Find-ResourcesAcrossPackages (
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceType').GetMethod),
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceGroup').GetMethod),
 		$ConstructResourceKey.CreateDelegate([Func[s3pi.Interfaces.IResourceKey, s3pi.Interfaces.TGIBlock]]),
-		[Action[Exception]] {Param ($Exception) Write-Warning (& $FormatError $Exception)}
+		[Action[Exception, String, s3pi.Interfaces.IResourceKey]] {Param ($Exception, $PackagePath, $ResourceKey) Write-Warning "$((& $FormatError $Exception))$([Environment]::Newline)    That error occurred while examining resource $ResourceKey of the package at `"$PackagePath`""}
 	)
 }
 

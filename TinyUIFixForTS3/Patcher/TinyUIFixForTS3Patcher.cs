@@ -1526,7 +1526,7 @@ namespace TinyUIFixForTS3Patcher
 			Func<IResourceKey, uint> getResourceTypeOfResourceKey,
 			Func<IResourceKey, uint> getResourceGroupOfResourceKey,
 			Func<IResourceKey, ConstructableResourceKey> constructResourceKey,
-			Action<Exception> logWarning
+			Action<Exception, string, IResourceKey> logWarning
 		)
 		where IResourceIndexEntry : IResourceKey
 		where ConstructableResourceKey : IResourceKey
@@ -1633,7 +1633,7 @@ namespace TinyUIFixForTS3Patcher
 					}
 					catch (Exception error)
 					{
-						logWarning(error);
+						logWarning(error, filePath, lastKey);
 					}
 
 					if (foundByResourceType.Count <= 0 && byCondition.Length <= 0 && byKey.Count <= 0)
