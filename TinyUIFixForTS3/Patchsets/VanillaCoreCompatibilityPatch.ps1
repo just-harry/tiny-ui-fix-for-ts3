@@ -453,10 +453,31 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 				}
 			}
 
-			$PatchCount = ($ConvenientPatches.Values.ForEach{$_.Patches.Count} | Measure-Object -Sum).Sum
+			$ConvenientCursorPatches = @{
+				$TinyUIFixPSForTS3ResourceKeys.UIDLL = @{
+					TinyUIFixForTS3IntegrationTypeNamespace = 'Sims3.UI'
+					Patches = (
+						('System.Void Sims3.UI.SceneMgrWindow::RegisterCameraCursors()', @{Floats = 15}),
+						('System.Void Sims3.UI.CAS.CAPSmallMultiColorPickerDialog::.ctor(Sims3.SimIFace.Color[],System.Int32,System.Boolean,System.String,Sims3.UI.CAS.CAPSmallMultiColorPickerDialog/PickerType,Sims3.SimIFace.CAS.CASPart[],Sims3.SimIFace.CAS.CASPart,Sims3.SimIFace.Vector2)', @{Floats = 18}),
+						('System.Void Sims3.UI.CAS.CASCompositorController::InitCursors()', @{Floats = 18, 20, 22, 35}),
+						('System.Void Sims3.UI.CAS.CASFamilyScreen::Init()', @{Floats = 25}),
+						('System.Void Sims3.UI.CAS.CASHairAdvancedDialog::.ctor(Sims3.SimIFace.CAS.BodyTypes,System.Collections.Generic.List`1<Sims3.SimIFace.Color>,System.String,System.Boolean)', @{Floats = 18}),
+						('System.Void Sims3.UI.CAS.CASMultiColorPickerDialog::.ctor(Sims3.SimIFace.Color[],System.Int32,System.Boolean,System.String,Sims3.UI.CAS.CASMultiColorPickerDialog/PickerType,Sims3.SimIFace.CAS.CASPart[],Sims3.SimIFace.CAS.CASPart,Sims3.SimIFace.Vector2)', @{Floats = 18}),
+						('System.Void Sims3.UI.CAS.CASScales::Init()', @{Floats = 18}),
+						('System.Void Sims3.UI.CAS.CASTattoo::InitCursors()', @{Floats = 20, 22}),
+						('System.Void Sims3.UI.CAS.CAP.CAPCCMAdvanced::InitCursors()', @{Floats = 20, 22}),
+						('System.Void Sims3.UI.Controller.OrganizeCollectionsDialog::InitCursors()', @{Floats = 20, 22}),
+						('System.Void Sims3.UI.GameEntry.EditTownTool::InitCursors()', @{Floats = 20, 22}),
+						('System.Void Sims3.UI.GameEntry.PlayFlowController::InitCursors()', @{Floats = 20, 22})
+					)
+				}
+			}
+
+			$PatchCount = ($ConvenientPatches.Values.ForEach{$_.Patches.Count} | Measure-Object -Sum).Sum + ($ConvenientCursorPatches.Values.ForEach{$_.Patches.Count} | Measure-Object -Sum).Sum
 			$State.Logger.WriteInfo("Applying $($PatchCount + 2) patches to the vanilla core DLLs.")
 
 			$ConvenientlyAppliedPatches = Apply-ConvenientPatchesToAssemblies $ConvenientPatches $State.Assemblies.Resolver $State.Assemblies.AssemblyKeysByResourceKey
+			Apply-ConvenientPatchesToAssemblies $ConvenientCursorPatches $State.Assemblies.Resolver $State.Assemblies.AssemblyKeysByResourceKey -ScalingFunction getCursorScale
 
 			$TinyUIFixForTS3IntegrationType = $UI.MainModule.GetType('Sims3.UI.TinyUIFixForTS3Integration')
 			$GetUIScale = Find-StaticField $TinyUIFixForTS3IntegrationType getUIScale
