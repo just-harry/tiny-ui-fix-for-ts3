@@ -82,6 +82,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				grid-template-columns: max-content 1fr;
 				column-gap: 0.4rem;
 				row-gap: 0.6rem;
+				overflow-x: auto;
 			}
 
 			.label-grid > label
@@ -104,7 +105,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 				grid-column: 3;
 			}
 
-			.label-grid > label.checkbox > :nth-child(1)
+			.label-grid > label.checkbox > :nth-child(1), .label-grid > details
 			{
 				grid-column: 1 / 4;
 			}
@@ -457,6 +458,9 @@ $MinimumPatchsetLoadOrderPosition = 2
 				const importExportZone = configurator.querySelector('[data-import-export-zone]');
 				const uiScaleInput = configurator.querySelector('[data-ui-scale]');
 				const textScaleInput = configurator.querySelector('[data-text-scale]');
+				const cursorScaleInput = configurator.querySelector('[data-cursor-scale]');
+				const cursorScalingAlgorithmSelect = configurator.querySelector('[data-cursor-scaling-algorithm]');
+				const useSharpenedCursorScalingInput = configurator.querySelector('[data-use-sharpened-cursor-scaling]');
 				const disableRuntimeModMismatchCheckInput = configurator.querySelector('[data-disable-runtime-mod-mismatch-check]');
 
 				const handleChangeOfPatchsetLoadOrderPosition = (event, moveFocusWithPatchset) =>
@@ -609,7 +613,25 @@ $MinimumPatchsetLoadOrderPosition = 2
 					);
 				};
 
-				generatePackageButton.addEventListener('click', event => sendRequestAndSetHeaderStatusMessage('/generate-package', {patchsetConfiguration: {Nucleus: {UIScale: uiScaleInput.value, TextScale: textScaleInput.value, DisableRuntimeModMismatchCheck: disableRuntimeModMismatchCheckInput.checked}}, patchsetLoadOrder: currentLoadOrder().join(' ')}, 'A package is now being generated. Please return to the PowerShell script.'));
+				generatePackageButton.addEventListener(
+					'click',
+					event => sendRequestAndSetHeaderStatusMessage(
+						'/generate-package',
+						{
+							patchsetConfiguration: {
+								Nucleus: {
+									UIScale: uiScaleInput.value,
+									TextScale: textScaleInput.value,
+									CursorScale: cursorScaleInput.value,
+									CursorScalingAlgorithm: ```${cursorScalingAlgorithmSelect.value}`${useSharpenedCursorScalingInput.checked ? '!Sharp' : ''}``,
+									DisableRuntimeModMismatchCheck: disableRuntimeModMismatchCheckInput.checked
+								}
+							},
+							patchsetLoadOrder: currentLoadOrder().join(' ')
+						},
+						'A package is now being generated. Please return to the PowerShell script.'
+					)
+				);
 				exportLoadOrderButton.addEventListener('click', event => importExportZone.value = currentLoadOrder().join("\r\n"));
 				importLoadOrderButton.addEventListener('click', event => importLoadOrderText(importExportZone.value));
 				checkForUpdatesButton.addEventListener('click', event => sendRequestAndSetFooterStatusMessage('/check-for-updates'));
@@ -662,6 +684,52 @@ $MinimumPatchsetLoadOrderPosition = 2
 										<span class="with-units">
 											<input id="text-scale" type="number" min="0.05" step="0.05" name="text-scale" value="$($State.TextScale)" placeholder="Same as the UI Scale" data-text-scale>
 											<span><abbr title="times">x</abbr></span>
+										</span>
+									</label>
+
+									<label title="This controls the scale of the game's mouse-cursor, as a multiplier. A cursor scale of 1 is the game's default cursor scale, whereas a cursor scale of 2 would result in the game's cursor being twice as big as usual.&#13;&#10;If no value is provided for the cursor scale, it defaults to 1.">
+										<span>Cursor Scale</span>
+										<span class="with-units">
+											<input id="cursor-scale" type="number" min="0.05" step="0.05" name="cursor-scale" value="$($State.CursorScale)" placeholder="1.00" data-cursor-scale>
+											<span><abbr title="times">x</abbr></span>
+										</span>
+									</label>
+
+									$($Algorithm = $State.CursorScalingAlgorithm -creplace '!Sharp$'; $Sharp = $Algorithm.Length -ne $State.CursorScalingAlgorithm.Length)
+
+									<label title="This controls the scaling algorithm used to scale the game's mouse-cursor. The available algorithms are those provided by FFmpeg's &quot;scale&quot; filter.">
+										<span>Cursor Scaling Algorithm</span>
+										<select id="cursor-scaling-algorithm" name="cursor-scaling-algorithm" autocomplete="off" data-cursor-scaling-algorithm>
+											<option value=`"`"></option>
+											<option value="area" $(if ($Algorithm -eq 'area') {'selected'})>Area</option>
+											<option value="bicubic" $(if ($Algorithm -eq 'bicubic') {'selected'})>Bicubic</option>
+											<option value="bicublin" $(if ($Algorithm -eq 'bicublin') {'selected'})>Bicublin</option>
+											<option value="bilinear" $(if ($Algorithm -eq 'bilinear') {'selected'})>Bilinear</option>
+											<option value="experimental" $(if ($Algorithm -eq 'experimental') {'selected'})>Experimental</option>
+											<option value="gauss" $(if ($Algorithm -eq 'gauss') {'selected'})>Gauss</option>
+											<option value="lanczos" $(if ($Algorithm -eq 'lanczos') {'selected'})>Lanczos</option>
+											<option value="neighbor" $(if ($Algorithm -eq 'neighbor') {'selected'})>Nearest Neighbour</option>
+											<option value="sinc" $(if ($Algorithm -eq 'sinc') {'selected'})>Sinc</option>
+											<option value="spline" $(if ($Algorithm -eq 'spline') {'selected'})>Spline</option>
+										</select>
+									</label>
+
+									<details>
+										<summary>Notes regarding cursor scaling</summary>
+										<p>Cursor scaling has been tested only on Windows, whether it works on macOS or not is unknown.</p>
+										<hr>
+										<p>
+											Increasing the cursor scale has the potential to reduce the game's frame-rate, and to increase frame latency.
+											This is because cursors larger than 32-pixels have the potential to disable hardware-accelerated cursors, forcing the operating-system to present the game via a non-hardware-accelerated swapchain.
+											<br>
+											Though, on most hardware and operating-systems, a cursor scale of no-more-than 2 should be still hardware-accelerated.
+										</p>
+									</details>
+
+									<label class="checkbox" title="If this is checked, cursors will first be oversampled via nearest-neighbour scaling before being scaled to the desired size via the selected cursor scaling algorithm.">
+										<span>
+											<input type="checkbox" $(if ($Sharp) {'checked'}) autocomplete="off" data-use-sharpened-cursor-scaling>
+											<span>Use sharpened cursor scaling?</span>
 										</span>
 									</label>
 

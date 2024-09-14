@@ -6852,6 +6852,8 @@ try
 			-State @{
 				UIScale = $PatchingState.Configuration.Nucleus.UIScale
 				TextScale = $PatchingState.Configuration.Nucleus.TextScale
+				CursorScale = $PatchingState.Configuration.Nucleus.CursorScale
+				CursorScalingAlgorithm = $PatchingState.Configuration.Nucleus.CursorScalingAlgorithm
 				DisableRuntimeModMismatchCheck = $PatchingState.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 				LoadOrder = $LoadOrder
 				AvailablePatchsets = $AvailablePatchsetsForConfigurator
