@@ -3198,6 +3198,52 @@ function Apply-PatchesToResources (
 		}
 	}
 
+	$State.RegisteredLayoutTransformers = [Collections.Generic.List[ValueTuple[ScriptBlock, Object]]]::new()
+
+	$HandleSuppliedLayoutTransformers = `
+	{
+		Param ($Transformers, $SourcePatchset)
+
+		if ($Null -ne $Transformers)
+		{
+			$State.RegisteredLayoutTransformers.AddRange(
+				[ValueTuple[ScriptBlock, Object][]] $Transformers.ForEach{[ValueTuple[ScriptBlock, Object]]::new($_, $SourcePatchset)}
+			)
+		}
+	}
+
+	foreach ($Patchset in $Patchsets)
+	{
+		if ($Null -ne $Patchset.Instance.BeforeUIScaling)
+		{
+			if ($Patchset.Instance.BeforeUIScaling.SupplyLayoutTransformers -is [ScriptBlock])
+			{
+				[TinyUIFixPSForTS3]::WriteLineQuickly("Getting layout-transformers from the `"$($Patchset.Definition.ID)`" patchset.")
+
+				& $HandleSuppliedLayoutTransformers $(
+					$State.Logger.CurrentPatchset = $Patchset
+					& $Patchset.Instance.BeforeUIScaling.SupplyLayoutTransformers -Self $Patchset.Instance -State $State
+				) $Patchset
+			}
+		}
+	}
+
+	foreach ($Patchset in $PatchsetsRetro)
+	{
+		if ($Null -ne $Patchset.Instance.BeforeUIScaling)
+		{
+			if ($Patchset.Instance.BeforeUIScaling.SupplyLayoutTransformersRetro -is [ScriptBlock])
+			{
+				[TinyUIFixPSForTS3]::WriteLineQuickly("Getting layout-transformers, retro, from the `"$($Patchset.Definition.ID)`" patchset.")
+
+				& $HandleSuppliedLayoutTransformers $(
+					$State.Logger.CurrentPatchset = $Patchset
+					& $Patchset.Instance.BeforeUIScaling.SupplyLayoutTransformersRetro -Self $Patchset.Instance -State $State
+				) $Patchset
+			}
+		}
+	}
+
 	$State.RegisteredExtraLayoutScalers = [Collections.Generic.List[TinyUIFixForTS3Patcher.LayoutScaler+ExtraScaler]]::new(0)
 
 	$HandleSuppliedExtraLayoutScalers = `
@@ -3323,6 +3369,12 @@ function Apply-PatchesToResources (
 	}
 
 
+	if (-not [TinyUIFixForTS3Patcher.LayoutScaler]::IsInitialisedForCurrentThread)
+	{
+		[TinyUIFixForTS3Patcher.LayoutScaler]::InitialiseForCurrentThread()
+	}
+
+
 	$WinProcLayoutWinProcsByControlID = [Collections.Generic.Dictionary[UInt32, Collections.Generic.List[ValueTuple[TinyUIFixForTS3Patcher.LayoutScaler+LayoutWinProc, TinyUIFixForTS3Patcher.LayoutScaler+ControlIDChain]]]]::new()
 
 
@@ -3350,21 +3402,13 @@ function Apply-PatchesToResources (
 						return $False
 					}
 
-					$OptionsDialogLayoutResourceKey = $TinyUIFixPSForTS3ResourceKeys.OptionsDialogLayout
+					$Key = [s3pi.Interfaces.TGIBlock]::new(1, $Null, $IndexEntry)
 
 					try
 					{
-						if (
-							     $OptionsDialogLayoutResourceKey.Instance -eq $IndexEntry.Instance `
-							-and $OptionsDialogLayoutResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
-						)
+						foreach ($Transformer in $State.RegisteredLayoutTransformers)
 						{
-							if (-not [TinyUIFixForTS3Patcher.LayoutScaler]::IsInitialisedForCurrentThread)
-							{
-								[TinyUIFixForTS3Patcher.LayoutScaler]::InitialiseForCurrentThread()
-							}
-
-							Repair-TheOptionsDialogLayout $XML
+							& $Transformer.Item1 -Self $Transformer.Item2.Instance -State $State -XML $XML -ResourceKey $Key
 						}
 
 						$Result = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleLayoutBy($XML, $State.Patchsets.Nucleus.Instance.EffectiveUIScale, $State.RegisteredExtraLayoutScalers)
@@ -3712,99 +3756,6 @@ function Apply-PatchesToResources (
 				{[IO.File]::OpenWrite($AssemblyDestination)},
 				{Param ($File) $AssemblyStream.Value.CopyTo($File)}
 			)
-		}
-	}
-}
-
-
-function Repair-TheOptionsDialogLayout ([Xml.XmlDocument] $XML)
-{
-	$Buttons = $XML.SelectNodes('//object[@cls = "Button"]')
-
-	foreach ($Button in $Buttons)
-	{
-		$ButtonType = $Button.SelectSingleNode('./prop[@name = "ButtonType"]')
-
-		if ($Null -ne $ButtonType)
-		{
-			$ButtonTypeInt = [UInt32]::Parse($ButtonType.GetAttribute('value'), [TinyUIFixForTS3Patcher.Parsing]::integerFormat)
-
-			<# A checkbox or a radio-button #>
-			if ($ButtonTypeInt -eq 2 -or $ButtonTypeInt -eq 3)
-			{
-				$UnstretchedSize = if ($ButtonTypeInt -eq 2) {[Float] 28} else {[Float] 22}
-
-				$Area = $Button.SelectSingleNode('./prop[@name = "Area"]')
-
-				if ($Null -ne $Area)
-				{
-					$AreaValue = [TinyUIFixForTS3Patcher.LayoutScaler]::AreaFromString($Area.GetAttribute('value'))
-					$AreaValue.W = $AreaValue.X + $UnstretchedSize
-					$AreaValue.Z = $AreaValue.Y + $UnstretchedSize
-					$Area.SetAttribute('value', [TinyUIFixForTS3Patcher.LayoutScaler]::AreaToString($AreaValue))
-				}
-
-				$CaptionWrap = $Button.SelectSingleNode('./prop[@name = "CaptionWrap"]')
-
-				if ($Null -ne $CaptionWrap)
-				{
-					$CaptionWrap.SetAttribute('value', '0')
-				}
-
-				$CaptionOverflow = $Button.SelectSingleNode('./prop[@name = "CaptionOverflow"]')
-
-				if ($Null -ne $CaptionOverflow)
-				{
-					$CaptionOverflow.SetAttribute('value', '0')
-				}
-
-				$CaptionBorder = $Button.SelectSingleNode('./prop[@name = "CaptionBorder"]')
-
-				if ($Null -eq $CaptionBorder)
-				{
-					$CaptionBorder = $XML.CreateElement('prop')
-					$CaptionBorder.SetAttribute('name', 'CaptionBorder')
-					$CaptionBorder.SetAttribute('propid', '0xeec1d006')
-					$CaptionBorder.SetAttribute('type', 'struct')
-
-					$Button.AppendChild($CaptionBorder) > $Null
-				}
-
-				$CaptionBorderBorders = $CaptionBorder.SelectSingleNode('./struct[@cls = "Borders"]')
-
-				if ($Null -eq $CaptionBorderBorders)
-				{
-					$CaptionBorderBorders = $XML.CreateElement('struct')
-					$CaptionBorderBorders.SetAttribute('cls', 'Borders')
-					$CaptionBorderBorders.SetAttribute('clsid', 'Borders')
-
-					$CaptionBorder.AppendChild($CaptionBorderBorders) > $Null
-				}
-
-				$CaptionBorderBordersLeft = $CaptionBorderBorders.SelectSingleNode('./prop[@name = "Left"]')
-
-				if ($Null -eq $CaptionBorderBordersLeft)
-				{
-					$CaptionBorderBordersLeft = $XML.CreateElement('prop')
-					$CaptionBorderBordersLeft.SetAttribute('name', 'Left')
-					$CaptionBorderBordersLeft.SetAttribute('propid', '1')
-					$CaptionBorderBordersLeft.SetAttribute('type', 'float')
-					$CaptionBorderBordersLeft.SetAttribute('value', '0')
-
-					$CaptionBorderBorders.AppendChild($CaptionBorderBordersLeft) > $Null
-				}
-
-				$CaptionBorderBordersLeftValue = [TinyUIFixForTS3Patcher.LayoutScaler]::ValueFromString(
-					$CaptionBorderBordersLeft.GetAttribute('value')
-				)
-
-				$CaptionBorderBordersLeftValue += $UnstretchedSize
-
-				$CaptionBorderBordersLeft.SetAttribute(
-					'value',
-					[TinyUIFixForTS3Patcher.LayoutScaler]::ValueToString($CaptionBorderBordersLeftValue)
-				)
-			}
 		}
 	}
 }

@@ -17,6 +17,27 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 	FriendlyName = 'Vanilla Core DLL Compatibility Patches'
 	Description = "These patches make the game's core DLLs compatible with the UI scaling added by the Tiny UI Fix.$(${If it's Christmas!})"
 
+	BeforeUIScaling = @{
+		SupplyLayoutTransformers = `
+		{
+			Param ($Self, $State)
+
+			{
+				Param ($Self, $State, $XML, $ResourceKey)
+
+				$OptionsDialogLayoutResourceKey = $TinyUIFixPSForTS3ResourceKeys.OptionsDialogLayout
+				if (
+					     $OptionsDialogLayoutResourceKey.Instance -eq $ResourceKey.Instance `
+					-and $OptionsDialogLayoutResourceKey.ResourceGroup -eq $ResourceKey.ResourceGroup
+				)
+				{
+					& $Self.UnstretchStetchedCheckboxesAndRadioButtons $XML
+					return
+				}
+			}
+		}
+	}
+
 	DuringUIScaling = @{
 		PatchAssemblies = `
 		{
@@ -488,6 +509,100 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 			}
 
 			@{PatchedAssemblies = $ConvenientlyAppliedPatches}
+		}
+	}
+
+	UnstretchStetchedCheckboxesAndRadioButtons = `
+	{
+		Param ([Xml.XmlDocument] $XML)
+
+		$Buttons = $XML.SelectNodes('//object[@cls = "Button"]')
+
+		foreach ($Button in $Buttons)
+		{
+			$ButtonType = $Button.SelectSingleNode('./prop[@name = "ButtonType"]')
+
+			if ($Null -ne $ButtonType)
+			{
+				$ButtonTypeInt = [UInt32]::Parse($ButtonType.GetAttribute('value'), [TinyUIFixForTS3Patcher.Parsing]::integerFormat)
+
+				<# A checkbox or a radio-button #>
+				if ($ButtonTypeInt -eq 2 -or $ButtonTypeInt -eq 3)
+				{
+					$UnstretchedSize = if ($ButtonTypeInt -eq 2) {[Float] 28} else {[Float] 22}
+
+					$Area = $Button.SelectSingleNode('./prop[@name = "Area"]')
+
+					if ($Null -ne $Area)
+					{
+						$AreaValue = [TinyUIFixForTS3Patcher.LayoutScaler]::AreaFromString($Area.GetAttribute('value'))
+						$AreaValue.W = $AreaValue.X + $UnstretchedSize
+						$AreaValue.Z = $AreaValue.Y + $UnstretchedSize
+						$Area.SetAttribute('value', [TinyUIFixForTS3Patcher.LayoutScaler]::AreaToString($AreaValue))
+					}
+
+					$CaptionWrap = $Button.SelectSingleNode('./prop[@name = "CaptionWrap"]')
+
+					if ($Null -ne $CaptionWrap)
+					{
+						$CaptionWrap.SetAttribute('value', '0')
+					}
+
+					$CaptionOverflow = $Button.SelectSingleNode('./prop[@name = "CaptionOverflow"]')
+
+					if ($Null -ne $CaptionOverflow)
+					{
+						$CaptionOverflow.SetAttribute('value', '0')
+					}
+
+					$CaptionBorder = $Button.SelectSingleNode('./prop[@name = "CaptionBorder"]')
+
+					if ($Null -eq $CaptionBorder)
+					{
+						$CaptionBorder = $XML.CreateElement('prop')
+						$CaptionBorder.SetAttribute('name', 'CaptionBorder')
+						$CaptionBorder.SetAttribute('propid', '0xeec1d006')
+						$CaptionBorder.SetAttribute('type', 'struct')
+
+						$Button.AppendChild($CaptionBorder) > $Null
+					}
+
+					$CaptionBorderBorders = $CaptionBorder.SelectSingleNode('./struct[@cls = "Borders"]')
+
+					if ($Null -eq $CaptionBorderBorders)
+					{
+						$CaptionBorderBorders = $XML.CreateElement('struct')
+						$CaptionBorderBorders.SetAttribute('cls', 'Borders')
+						$CaptionBorderBorders.SetAttribute('clsid', 'Borders')
+
+						$CaptionBorder.AppendChild($CaptionBorderBorders) > $Null
+					}
+
+					$CaptionBorderBordersLeft = $CaptionBorderBorders.SelectSingleNode('./prop[@name = "Left"]')
+
+					if ($Null -eq $CaptionBorderBordersLeft)
+					{
+						$CaptionBorderBordersLeft = $XML.CreateElement('prop')
+						$CaptionBorderBordersLeft.SetAttribute('name', 'Left')
+						$CaptionBorderBordersLeft.SetAttribute('propid', '1')
+						$CaptionBorderBordersLeft.SetAttribute('type', 'float')
+						$CaptionBorderBordersLeft.SetAttribute('value', '0')
+
+						$CaptionBorderBorders.AppendChild($CaptionBorderBordersLeft) > $Null
+					}
+
+					$CaptionBorderBordersLeftValue = [TinyUIFixForTS3Patcher.LayoutScaler]::ValueFromString(
+						$CaptionBorderBordersLeft.GetAttribute('value')
+					)
+
+					$CaptionBorderBordersLeftValue += $UnstretchedSize
+
+					$CaptionBorderBordersLeft.SetAttribute(
+						'value',
+						[TinyUIFixForTS3Patcher.LayoutScaler]::ValueToString($CaptionBorderBordersLeftValue)
+					)
+				}
+			}
 		}
 	}
 }
