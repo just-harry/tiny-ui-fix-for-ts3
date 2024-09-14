@@ -34,6 +34,16 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 					& $Self.UnstretchStetchedCheckboxesAndRadioButtons $XML
 					return
 				}
+
+				$CASTattooLayoutResourceKey = $TinyUIFixPSForTS3ResourceKeys.CASTattooLayout
+				if (
+					     $CASTattooLayoutResourceKey.Instance -eq $ResourceKey.Instance `
+					-and $CASTattooLayoutResourceKey.ResourceGroup -eq $ResourceKey.ResourceGroup
+				)
+				{
+					& $Self.UnstretchStetchedCheckboxesAndRadioButtons $XML
+					return
+				}
 			}
 		}
 	}

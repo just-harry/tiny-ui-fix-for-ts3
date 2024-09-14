@@ -1221,6 +1221,7 @@ $TinyUIFixPSForTS3ResourceKeys = @{
 	Sims3GameplaySystemsDLL = $Null
 	Sims3GameplayObjectsDLL = $Null
 	Sims3StoreObjectsDLL = $Null
+	CASTattooLayout = $Null
 	StyleGuideLayout = $Null
 	OptionsDialogLayout = $Null
 	TinyUIFixForTS3DLL = $Null
@@ -2165,6 +2166,7 @@ function Initialize-TinyUIFixResourceKeys
 	$TinyUIFixPSForTS3ResourceKeys.Sims3GameplaySystemsDLL = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0x03d6c8d903ce868c -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.Sims3GameplayObjectsDLL = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0xb9c90fdc6793bc0a -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.Sims3StoreObjectsDLL = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0x0cae1c361e05b2b3 -band [UInt64]::MaxValue)
+	$TinyUIFixPSForTS3ResourceKeys.CASTattooLayout = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, 0x00000000, 0xf2d661e40c4a404b -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.StyleGuideLayout = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, 0x00000000, 0x0a5e033d7797bde8 -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.OptionsDialogLayout = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, 0x00000000, 0xbe899b75f7f9536d -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3DLL = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::S3SATypeID, 0x00000000, 0x9289ae008066179f -band [UInt64]::MaxValue)
