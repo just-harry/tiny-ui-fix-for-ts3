@@ -3291,6 +3291,8 @@ function Apply-PatchesToResources (
 		}
 	}
 
+	$State.EnqueuedScalingOfImages = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]::new()
+
 
 	$ResourcesByPackage = $UnpatchedResourcesByPackage
 
@@ -3379,9 +3381,6 @@ function Apply-PatchesToResources (
 
 
 	$WinProcLayoutWinProcsByControlID = [Collections.Generic.Dictionary[UInt32, Collections.Generic.List[ValueTuple[TinyUIFixForTS3Patcher.LayoutScaler+LayoutWinProc, TinyUIFixForTS3Patcher.LayoutScaler+ControlIDChain]]]]::new()
-
-
-	$ScaledCounts = [UInt32[]] @(0, 0, 0)
 
 	$ApplyPatch = `
 	{
@@ -3526,7 +3525,200 @@ function Apply-PatchesToResources (
 		)
 	}
 
-	[TinyUIFixPSForTS3]::WriteLineQuickly("Scaled $($ScaledCounts[1]) layout$(if ($ScaledCounts[1] -ne 1) {'s'}), and $($ScaledCounts[2]) CSS text-style$(if ($ScaledCounts[2] -ne 1) {'s'}).")
+	$ScaledCounts = [UInt32[]] @(0, 0, 0, 0, 0)
+
+	$PowerShellProcess = [Diagnostics.Process]::GetCurrentProcess()
+
+	while (
+		Test-Path -LiteralPath (
+			$ImageScratchPath = (
+				Join-Path $PSScriptRoot "ImageScratch-$([DateTime]::UtcNow.Ticks)-$($PowerShellProcess.Id)"
+			)
+		)
+	)
+	{}
+
+	New-Item -ItemType Directory -Force -Path $ImageScratchPath > $Null
+
+	$ImageCounter = 0
+
+	if ($?)
+	{
+		[TinyUIFixPSForTS3]::WriteLineQuickly("Scaling images.")
+
+		$ScaledImagesKeysByIndexByPermutations = [Collections.Generic.Dictionary[ValueTuple[String, Double, String], Collections.Generic.List[s3pi.Interfaces.TGIBlock]]]::new()
+
+		foreach ($ImageScaling in $State.EnqueuedScalingOfImages.GetEnumerator())
+		{
+			$Data = $ImageScaling.Value.ImageData
+
+			<# Some of the cursor images in DeltaBuild0.package are literally
+			   just garbage records to avoid the ones in FullBuild0.package
+			   being used. Hence the `$Data.Length -gt 0`. Ugh. #>
+			if ($Null -ne $Data -and $Data.Length -gt 0)
+			{
+				$FileExtension = if ($ImageScaling.Key.ResourceType -ceq [TinyUIFixPSForTS3]::IMAGTGATypeID) {'.tga'} else {'.png'}
+
+				$Permutation = [ValueTuple[String, Double, String]]::new($ImageScaling.Value.Queued.Algorithm, [Double] $ImageScaling.Value.Queued.Scale, $FileExtension)
+				$Destination = Join-Path $ImageScratchPath "$($Permutation.Item1)#$($Permutation.Item2)#$($Permutation.Item3)"
+
+				$ScaledImagesKeysByIndex = $ScaledImagesKeysByIndexByPermutations[$Permutation]
+
+				if ($Null -eq $ScaledImagesKeysByIndex)
+				{
+					$ScaledImagesKeysByIndex = [Collections.Generic.List[s3pi.Interfaces.TGIBlock]]::new()
+					$ScaledImagesKeysByIndexByPermutations[$Permutation] = $ScaledImagesKeysByIndex
+					New-Item -ItemType Directory -Force -Path $Destination > $Null
+				}
+
+				$FileName = "$(([String] $ScaledImagesKeysByIndex.Count).PadLeft(10, '0')).source$FileExtension"
+				++$ImageCounter
+				$Data.Position = 0
+
+				[TinyUIFixPSForTS3]::UseDisposable(
+					{[IO.File]::OpenWrite((Join-Path $Destination $FileName))},
+					{Param ($File) $Data.CopyTo($File)}
+				)
+
+				$ScaledImagesKeysByIndex.Add($ImageScaling.Key)
+			}
+		}
+
+		if ($ImageCounter -gt 0)
+		{
+			$BinariesPath = Join-Path $PSScriptRoot Binaries
+			$FFmpeg = $Null
+
+			if (-not (Test-Path -LiteralPath ($FFmpeg = Join-Path $BinariesPath $(if ($IsWindows) {'ffmpeg.exe'} else {'ffmpeg'}))) -and $Null -eq ($FFmpeg = (Get-Command ffmpeg -ErrorAction Ignore).Source))
+			{
+				if (Read-YesOrNo "FFmpeg is required to scale images: FFmpeg was not found on this computer.$([Environment]::NewLine)Would you like to download FFmpeg (https://www.ffmpeg.org) now?")
+				{
+					if ($IsWindows)
+					{
+						$FFmpeg = Use-FileWhatIsDownloadedIfNecessary $FFmpegWindowsFileDescription $BinariesPath `
+						{
+							Param ($File, $Description)
+							Expand-Archive -LiteralPath (Join-Path $BinariesPath $Description.FileName) -DestinationPath $BinariesPath
+							Join-Path $BinariesPath ffmpeg.exe
+						}
+
+						Unblock-File -LiteralPath $FFmpeg
+					}
+					elseif ($IsMacOS)
+					{
+						$FFmpeg = Use-FileWhatIsDownloadedIfNecessary $FFmpegMacOSFileDescription $BinariesPath `
+						{
+							Param ($File, $Description)
+							Expand-Archive -LiteralPath (Join-Path $BinariesPath $Description.FileName) -DestinationPath $BinariesPath
+							Join-Path $BinariesPath ffmpeg
+						}
+
+						Unblock-File -LiteralPath $FFmpeg
+					}
+					else
+					{
+						[TinyUIFixPSForTS3]::WriteQuicklyWithColour('Please install ffmpeg via your system''s package manager.', $Global:Host.PrivateData.ProgressForegroundColor, $Global:Host.PrivateData.ProgressBackgroundColor)
+						[TinyUIFixPSForTS3]::WriteLineQuickly([String]::Empty)
+					}
+				}
+			}
+
+			if ($Null -eq $FFmpeg)
+			{
+				$ScaledCounts[3] = 0
+			}
+			else
+			{
+				foreach ($Permutation in $ScaledImagesKeysByIndexByPermutations.Keys)
+				{
+					$Destination = Join-Path $ImageScratchPath "$($Permutation.Item1)#$($Permutation.Item2)#$($Permutation.Item3)"
+
+					$FirstPassAlgorithm = $Permutation.Item1 -creplace '!Sharp$'
+
+					if ($FirstPassAlgorithm.Length -ne $Permutation.Item1.Length)
+					{
+						if ($FirstPassAlgorithm.Length -eq 0)
+						{
+							$FirstPassAlgorithm = 'bilinear'
+						}
+
+						$SecondPassAlgorithm = $FirstPassAlgorithm
+						$FirstPassAlgorithm = 'neighbor'
+						$FirstPassScale = [Math]::Ceiling($Permutation.Item2)
+						$SecondPassScale = [Double] $Permutation.Item2 / $FirstPassScale
+					}
+					else
+					{
+						if ($FirstPassAlgorithm.Length -eq 0)
+						{
+							$FirstPassAlgorithm = 'bilinear'
+						}
+
+						$FirstPassAlgorithm = $Permutation.Item1
+						$SecondPassAlgorithm = $Null
+						$FirstPassScale = $Permutation.Item2
+						$SecondPassScale = $Null
+					}
+
+					$SourcePath = Join-Path $Destination "%010d.source$($Permutation.Item3)"
+					$ScaledPath = Join-Path $Destination "%010d.scaled$($Permutation.Item3)"
+
+					& $FFmpeg -y -v error -i $SourcePath -vf "scale=iw * $FirstPassScale : ih * $FirstPassScale : sws_flags=$FirstPassAlgorithm+accurate_rnd+full_chroma_int+full_chroma_inp" -start_number 0 $ScaledPath
+
+					if ($Null -ne $SecondPassScale -and $SecondPassScale -ne $FirstPassScale)
+					{
+						& $FFmpeg -y -v error -i $ScaledPath -vf "scale=iw * $SecondPassScale : ih * $SecondPassScale : sws_flags=$SecondPassAlgorithm+accurate_rnd+full_chroma_int+full_chroma_inp" -start_number 0 $ScaledPath
+					}
+				}
+
+				$FileStreams = [Collections.Generic.List[IO.FileStream]]::new()
+				$ReadFileInfos = [Collections.Generic.List[IO.FileInfo]]::new()
+				$ReadFileContents = [Collections.Generic.List[Byte[]]]::new()
+				$ReadFileTasks = [Threading.Tasks.Task[]] $(
+					([IO.DirectoryInfo] $ImageScratchPath).EnumerateFiles('*.scaled.*', [IO.SearchOption]::AllDirectories) | % `
+					{
+						$ReadFileInfos.Add($_)
+						$FileStream = [IO.FileStream]::new($_.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete, 4096, $True)
+						$FileStreams.Add($FileStream)
+
+						<# A race condition is possible here... don't care. #>
+						$Length = $FileStream.Length
+						$Bytes = [Byte[]]::new($Length)
+						$ReadFileContents.Add($Bytes)
+						$FileStream.ReadAsync($Bytes, 0, $Length)
+					}
+				)
+
+				$PermutationRegEx = [RegEx]::new('([^#]+)#([^#]+?)#([^#]+?)$', [Text.RegularExpressions.RegexOptions]::Compiled)
+				$NeverCompletes = [Threading.Tasks.Task]::Delay(-1)
+
+				for ($ProcessedCount = 0; $ProcessedCount -lt $ReadFileTasks.Count; ++$ProcessedCount)
+				{
+					$TaskIndex = [Threading.Tasks.Task]::WaitAny($ReadFileTasks)
+					$FileStreams[$TaskIndex].Dispose()
+					$ReadFileTask = $ReadFileTasks[$TaskIndex]
+					$ReadFileTasks[$TaskIndex] = $NeverCompletes
+					$FileInfo = $ReadFileInfos[$TaskIndex]
+
+					$Index = [UInt32] $FileInfo.Name.Substring(0, 10)
+					$PermutationMatch = $PermutationRegEx.Match((Split-Path -Leaf $FileInfo.DirectoryName))
+					$Permutation = [ValueTuple[String, Double, String]]::new($PermutationMatch.Groups[1].Value, [Double] $PermutationMatch.Groups[2].Value, $PermutationMatch.Groups[3].Value)
+					$ResourceKey = $ScaledImagesKeysByIndexByPermutations[$Permutation][$Index]
+
+					$IndexEntry = $State.IntoPackage.AddResource($ResourceKey, [IO.MemoryStream]::new($ReadFileContents[$TaskIndex], 0, $ReadFileTask.Result), $False)
+					$IndexEntry.Compressed = if ($Uncompressed) {0} else {0xffff}
+				}
+
+				Remove-Item -Force -Recurse -LiteralPath $ImageScratchPath -ErrorAction Ignore
+			}
+		}
+	}
+	else
+	{
+		$ScaledCounts[3] = 0
+	}
+
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Scaled $($ScaledCounts[1]) layout$(if ($ScaledCounts[1] -ne 1) {'s'}), $($ScaledCounts[2]) CSS text-style$(if ($ScaledCounts[2] -ne 1) {'s'}), $($ImageCounter) image$(if ($ImageCounter -ne 1) {'s'}), and $($ScaledCounts[4]) cursor-set$(if ($ScaledCounts[4] -ne 1) {'s'}).")
 
 
 	[TinyUIFixPSForTS3]::WriteLineQuickly('Identifying layout-win-procs by control-ID.')
@@ -5277,6 +5469,26 @@ $7ZipMacOSFileDescription = [PSCustomObject] @{
 	URLs = @(
 		'https://github.com/ip7z/7zip/releases/download/23.01/7z2301-mac.tar.xz'
 		'https://web.archive.org/web/20231221192206if_/https://objects.githubusercontent.com/github-production-release-asset-2e65be/466446150/05b42ffa-3973-4425-93e7-d162d91d918d?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20231221%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20231221T192205Z&X-Amz-Expires=300&X-Amz-Signature=d68460890575ff364a362624a0bc2735654ade30cd41ff20fb990cc9243039f7&X-Amz-SignedHeaders=host&actor_id=0&key_id=0&repo_id=466446150&response-content-disposition=attachment%3B%20filename%3D7z2301-mac.tar.xz&response-content-type=application%2Foctet-stream'
+	)
+}
+
+
+$FFmpegWindowsFileDescription = [PSCustomObject] @{
+	FileName = 'ffmpeg-7.0-win32.zip'
+	Fingerprint = [PSCustomObject] @{FileSize = 33140565; SHA256Hash = '77EBCB85B5B0CA58AC25BA14188877ADFB73F99E53DD8AD6F8F231EE4DA102A2'}
+	URLs = @(
+		'https://github.com/ShareX/FFmpeg/releases/download/v7.0/ffmpeg-7.0-win32.zip'
+		'https://web.archive.org/web/20240911043231if_/https://github.com/ShareX/FFmpeg/releases/download/v7.0/ffmpeg-7.0-win32.zip'
+	)
+}
+
+
+$FFmpegMacOSFileDescription = [PSCustomObject] @{
+	FileName = 'ffmpeg-7.0.2.zip'
+	Fingerprint = [PSCustomObject] @{FileSize = 25377119; SHA256Hash = '502622443F3FC412D101E682518DBEB1DEBBF73F54C94E7704A4448D6B7BC1F7'}
+	URLs = @(
+		'https://evermeet.cx/pub/ffmpeg/ffmpeg-7.0.2.zip'
+		'https://web.archive.org/web/20240911043501if_/https://evermeet.cx/pub/ffmpeg/ffmpeg-7.0.2.zip'
 	)
 }
 
