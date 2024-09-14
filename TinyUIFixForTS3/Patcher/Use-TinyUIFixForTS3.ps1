@@ -3506,6 +3506,7 @@ function Apply-PatchesToResources (
 
 
 	$WinProcLayoutWinProcsByControlID = [Collections.Generic.Dictionary[UInt32, Collections.Generic.List[ValueTuple[TinyUIFixForTS3Patcher.LayoutScaler+LayoutWinProc, TinyUIFixForTS3Patcher.LayoutScaler+ControlIDChain]]]]::new()
+	$CursorImages = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new()
 
 	$ApplyPatch = `
 	{
@@ -3615,6 +3616,25 @@ function Apply-PatchesToResources (
 			$Null
 			$True
 			3
+		}
+		elseif ($Category -ceq 'IsCursorSet')
+		{
+			& $EditXMLResource $IndexEntry $FromPackage `
+			{
+				Param ($XML)
+
+				$CursorSet = [TinyUIFixForTS3Patcher.LayoutScaler]::ScaleCursorSetBy($XML.DocumentElement, $State.Patchsets.Nucleus.Instance.EffectiveCursorScale)
+
+				foreach ($Cursor in $CursorSet.cursors)
+				{
+					$CursorImages.Add([s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::IMAGPNGTypeID, 0x00000000, [Security.Cryptography.FNV64]::GetHash($Cursor.imageName)))
+				}
+
+				$True
+			}
+
+			$True
+			4
 		}
 		else
 		{

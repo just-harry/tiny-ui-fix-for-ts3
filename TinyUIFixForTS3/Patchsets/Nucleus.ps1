@@ -118,7 +118,24 @@ $PatchsetDefinitionSchemaVersion = 1
 	{
 		Param ($Self, $State)
 
-		@{ByResourceType = [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::S3SATypeID, [TinyUIFixPSForTS3]::_CSSTypeID}
+		$Find = @{ByResourceType = [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::S3SATypeID, [TinyUIFixPSForTS3]::_CSSTypeID}
+
+		if ($Self.EffectiveCursorScale -ne [Float] 1)
+		{
+			$Find.ByResourceType += [TinyUIFixPSForTS3]::IMAGPNGTypeID
+
+			$Find.ByCondition = @(
+				[ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceIndexEntry, Bool]]]::new(
+					'IsCursorSet',
+					[TinyUIFixForTS3Patcher.ResourceManipulator]::MakeIsCursorSetResourcePredicate(
+						[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceType').GetMethod),
+						(New-ResourceStreamGetter).CreateDelegate([Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceIndexEntry, IO.Stream]])
+					)
+				)
+			)
+		}
+
+		$Find
 	}
 
 	DuringUIScaling = @{
