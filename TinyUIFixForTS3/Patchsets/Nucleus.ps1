@@ -19,13 +19,14 @@ $PatchsetDefinitionSchemaVersion = 1
 	EffectiveUIScale = [Float] 1
 	EffectiveTextScale = [Float] 1
 	EffectiveCursorScale = [Float] 1
+	EffectiveCursorScalingAlgorithm = 'bilinear!Sharp'
 	EffectiveDisableRuntimeModMismatchCheck = $False
 
 	MakeDefaultConfiguration = `
 	{
 		Param ($Self)
 
-		@{UIScale = [Float] 1; CursorScale = [Float] 1}
+		@{UIScale = [Float] 1; CursorScale = [Float] 1; CursorScalingAlgorithm = 'bilinear!Sharp'}
 	}
 
 	SettleStateBeforePatchsetsAreApplied = `
@@ -89,7 +90,8 @@ $PatchsetDefinitionSchemaVersion = 1
 			}
 		}
 
-		$State.Configuration.Nucleus.CursorScale = [String] $State.Configuration.Nucleus.CursorScale
+		$State.Configuration.Nucleus.CursorScalingAlgorithm = [String] $State.Configuration.Nucleus.CursorScalingAlgorithm
+
 		$State.Configuration.Nucleus.DisableRuntimeModMismatchCheck = if ($Null -eq $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck)
 		{
 			$False
@@ -111,6 +113,7 @@ $PatchsetDefinitionSchemaVersion = 1
 		$Self.EffectiveUIScale = $State.Configuration.Nucleus.UIScale
 		$Self.EffectiveTextScale = if ($Null -ne $State.Configuration.Nucleus.TextScale) {$State.Configuration.Nucleus.TextScale} else {$State.Configuration.Nucleus.UIScale}
 		$Self.EffectiveCursorScale = $State.Configuration.Nucleus.CursorScale
+		$Self.EffectiveCursorScalingAlgorithm = $State.Configuration.Nucleus.CursorScalingAlgorithm
 		$Self.EffectiveDisableRuntimeModMismatchCheck = $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 	}
 
