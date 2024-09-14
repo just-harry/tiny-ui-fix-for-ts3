@@ -184,6 +184,19 @@ namespace TinyUIFixForTS3Patcher
 			public uint[] controlIDs;
 		}
 
+		public struct Cursor
+		{
+			public uint id;
+			public string imageName;
+			public float unscaledHotX;
+			public float unscaledHotY;
+		}
+
+		public struct CursorSet
+		{
+			public List<Cursor> cursors;
+		}
+
 		public class ScaledLayoutResult
 		{
 			public Dictionary<uint, List<ValueTuple<LayoutWinProc, ControlIDChain>>> scrollbarLayoutWinProcsByControlID;
@@ -1176,6 +1189,50 @@ namespace TinyUIFixForTS3Patcher
 
 				winProcs = null;
 			}
+		}
+
+		public static CursorSet ScaleCursorSetBy (XmlNode xml, float multiplier)
+		{
+			if (!IsInitialisedForCurrentThread)
+			{
+				InitialiseForCurrentThread();
+			}
+
+			var cursors = new List<Cursor>(xml.ChildNodes.Count);
+			var cursorSet = new CursorSet{cursors = cursors};
+
+			if (xml.NodeType == XmlNodeType.Element && xml.Name == "CursorSet")
+			{
+				foreach (XmlNode child in xml)
+				{
+					if (child.NodeType != XmlNodeType.Element) {continue;}
+					if (child.Name != "Cursor") {continue;}
+
+					XmlNode id = child.Attributes.GetNamedItem("id");
+					if (id == null) {continue;}
+					var idInt = Convert.ToUInt32(id.Value, 16);
+
+					XmlNode image = child.Attributes.GetNamedItem("image");
+					if (image == null) {continue;}
+
+					XmlNode hotx = child.Attributes.GetNamedItem("hotx");
+					XmlNode hoty = child.Attributes.GetNamedItem("hoty");
+
+					cursors.Add(
+						new Cursor{
+							id = idInt,
+							imageName = image.Value,
+							unscaledHotX = hotx != null ? ValueFromString(hotx.Value) : float.NaN,
+							unscaledHotY = hoty != null ? ValueFromString(hoty.Value) : float.NaN
+						}
+					);
+
+					if (hotx != null) {hotx.Value = ScaleValueStringBy(hotx.Value, multiplier);}
+					if (hoty != null) {hoty.Value = ScaleValueStringBy(hoty.Value, multiplier);}
+				}
+			}
+
+			return cursorSet;
 		}
 	}
 
