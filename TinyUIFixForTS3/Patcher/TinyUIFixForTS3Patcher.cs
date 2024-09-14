@@ -1518,7 +1518,7 @@ namespace TinyUIFixForTS3Patcher
 			DirectoryInfo baseDirectory,
 			HashSet<IResourceKey> byKey,
 			uint[] byResourceType,
-			ValueTuple<object, Func<IPackage, IResourceKey, bool>>[] byCondition,
+			ValueTuple<object, Func<IPackage, IResourceIndexEntry, bool>>[] byCondition,
 			Func<int, string, bool, IPackage> openPackage,
 			Action<int, IPackage> closePackage,
 			Func<IPackage, IEnumerable<IResourceIndexEntry>> getResourceListOfPackage,

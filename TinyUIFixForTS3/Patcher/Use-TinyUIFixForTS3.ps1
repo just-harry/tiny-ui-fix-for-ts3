@@ -2268,7 +2268,7 @@ function Find-ResourcesAcrossPackages (
 	[IO.DirectoryInfo] $BaseDirectory,
 	[Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]] $ByKey,
 	[UInt32[]] $ByResourceType,
-	[ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]][]] $ByCondition
+	[ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceIndexEntry, Bool]][]] $ByCondition
 )
 {
 	$ConstructResourceKey = New-ResourceKeyConstructor
@@ -2281,7 +2281,7 @@ function Find-ResourcesAcrossPackages (
 		$ByCondition,
 		[Delegate]::CreateDelegate([Func[Int32, String, Bool, s3pi.Interfaces.IPackage]], [s3pi.Package.Package].GetMethod('OpenPackage', [Type[]] @([Int32], [String], [Bool]))),
 		[Delegate]::CreateDelegate([Action[Int32, s3pi.Interfaces.IPackage]], [s3pi.Package.Package].GetMethod('ClosePackage', [Type[]] @([Int32], [s3pi.Interfaces.IPackage]))),
-		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IPackage, Collections.Generic.IEnumerable[s3pi.Interfaces.IResourceKey]]], [s3pi.Interfaces.IPackage].GetProperty('GetResourceList').GetMethod),
+		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IPackage, Collections.Generic.IEnumerable[s3pi.Interfaces.IResourceIndexEntry]]], [s3pi.Interfaces.IPackage].GetProperty('GetResourceList').GetMethod),
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt64]], [s3pi.Interfaces.IResourceKey].GetProperty('Instance').GetMethod),
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceType').GetMethod),
 		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IResourceKey, UInt32]], [s3pi.Interfaces.IResourceKey].GetProperty('ResourceGroup').GetMethod),
@@ -2426,7 +2426,7 @@ function Find-ResourcesToPatch ([PSCustomObject] $ResolvedResourcesPriorities, $
 
 	$ResourcesToPatchByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new()
 	$ResourcesToPatchByResourceType = [Collections.Generic.List[UInt32]]::new(4)
-	$ResourcesToPatchByCondition = [Collections.Generic.List[ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]]]]::new(4)
+	$ResourcesToPatchByCondition = [Collections.Generic.List[ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceIndexEntry, Bool]]]]::new(4)
 
 	foreach ($Patchset in $State.Patchsets.Values)
 	{
@@ -2439,7 +2439,7 @@ function Find-ResourcesToPatch ([PSCustomObject] $ResolvedResourcesPriorities, $
 
 			$R = $ResourcesToFind.ByKey; if ($Null -ne $R) {$ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]] $R} else {$ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new()}
 			$R = $ResourcesToFind.ByResourceType; if ($Null -ne $R) {$ByResourceType = [UInt32[]] $R} else {$ByResourceType = [UInt32[]]::new(0)}
-			$R = $ResourcesToFind.ByCondition; if ($Null -ne $R) {$ByCondition = [ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]][]] $R} else {$ByCondition = [ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceKey, Bool]][]]::new(0)}
+			$R = $ResourcesToFind.ByCondition; if ($Null -ne $R) {$ByCondition = [ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceIndexEntry, Bool]][]] $R} else {$ByCondition = [ValueTuple[Object, Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceIndexEntry, Bool]][]]::new(0)}
 
 			$Patchset.ResourcesToFind = [PSCustomObject] @{ByKey = $ByKey; ByResourceType = $ByResourceType; ByCondition = $ByCondition}
 
