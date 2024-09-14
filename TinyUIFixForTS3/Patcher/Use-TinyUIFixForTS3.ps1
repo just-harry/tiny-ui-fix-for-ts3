@@ -4101,19 +4101,22 @@ function Apply-PatchesToResources (
 
 		if ($Null -ne $AssemblyPatchRegistrations.PatchedAssemblies)
 		{
-			$State.PatchedAssemblyResourceKeys.UnionWith(
-				[s3pi.Interfaces.TGIBlock[]] $(
-					foreach ($Registration in $AssemblyPatchRegistrations.PatchedAssemblies)
-					{
-						$ResourceKey = [s3pi.Interfaces.TGIBlock]::new(1, $Null, $Registration.ResourceKey)
-						$AssemblyName = "$($State.Assemblies.Resolver.Resolve($State.Assemblies.AssemblyKeysByResourceKey[$ResourceKey]).Name.Name).dll"
+			$AssemblyResourceKeys = [s3pi.Interfaces.TGIBlock[]] $(
+				foreach ($Registration in $AssemblyPatchRegistrations.PatchedAssemblies)
+				{
+					$ResourceKey = [s3pi.Interfaces.TGIBlock]::new(1, $Null, $Registration.ResourceKey)
+					$AssemblyName = "$($State.Assemblies.Resolver.Resolve($State.Assemblies.AssemblyKeysByResourceKey[$ResourceKey]).Name.Name).dll"
 
-						[TinyUIFixPSForTS3]::WriteLineQuickly("The `"$AssemblyName`" assembly, with a resource-key of $ResourceKey, was patched by the `"$($SourcePatchset.Definition.ID)`" patchset.")
+					[TinyUIFixPSForTS3]::WriteLineQuickly("The `"$AssemblyName`" assembly, with a resource-key of $ResourceKey, was patched by the `"$($SourcePatchset.Definition.ID)`" patchset.")
 
-						$ResourceKey
-					}
-				)
+					$ResourceKey
+				}
 			)
+
+			if ($Null -ne $AssemblyResourceKeys)
+			{
+				$State.PatchedAssemblyResourceKeys.UnionWith($AssemblyResourceKeys)
+			}
 		}
 	}
 
