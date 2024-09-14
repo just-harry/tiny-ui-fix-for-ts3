@@ -3699,7 +3699,7 @@ function Apply-PatchesToResources (
 				}
 			}
 		},
-		(New-ScriptBlockInvokerAsIs).CreateDelegate([Func[Object, Object[], Object]])
+		(New-ScriptBlockInvokerAsIs).CreateDelegate([Func[Object, [Object[]], Object]])
 	)
 
 	$CursorImages.ExceptWith($State.EnqueuedScalingOfImages.Keys)
