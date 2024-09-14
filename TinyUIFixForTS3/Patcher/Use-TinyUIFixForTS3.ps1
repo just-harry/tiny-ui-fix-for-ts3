@@ -2820,9 +2820,10 @@ function Append-Instruction
 }
 
 
-function Apply-PatchToTinyUIFixForTS3Assembly ([Mono.Cecil.AssemblyDefinition] $Assembly, [Float] $UIScale, [Bool] $DisableRuntimeModMismatchCheck)
+function Apply-PatchToTinyUIFixForTS3Assembly ([Mono.Cecil.AssemblyDefinition] $Assembly, [Float] $UIScale, [Float] $CursorScale, [Bool] $DisableRuntimeModMismatchCheck)
 {
 	$UIScalingType = $Assembly.MainModule.GetType('TinyUIFixForTS3.UIScaling')
+
 	$GetUIScale = Find-StaticMethod $UIScalingType GetUIScale
 
 	Edit-MethodBody $GetUIScale `
@@ -2832,6 +2833,19 @@ function Apply-PatchToTinyUIFixForTS3Assembly ([Mono.Cecil.AssemblyDefinition] $
 			if ($Instruction.Opcode.Code -eq [Mono.Cecil.Cil.Code]::Ldc_R4)
 			{
 				$Instruction.Operand = [Float] $UIScale
+			}
+		}
+	}
+
+	$GetCursorScale = Find-StaticMethod $UIScalingType GetCursorScale
+
+	Edit-MethodBody $GetCursorScale `
+	{
+		foreach ($Instruction in $IL.Body.Instructions)
+		{
+			if ($Instruction.Opcode.Code -eq [Mono.Cecil.Cil.Code]::Ldc_R4)
+			{
+				$Instruction.Operand = [Float] $CursorScale
 			}
 		}
 	}
@@ -3054,21 +3068,37 @@ function New-TinyUIFixForTS3IntegrationType ([String] $Namespace, [Mono.Cecil.Mo
 
 	${<>cType}.Methods.Add(${<>c.cctor})
 
-	${<>c<.cctor>b__2_0} = [Mono.Cecil.MethodDefinition]::new(
-		'<.cctor>b__2_0',
+	${<>c<.cctor>b__3_0} = [Mono.Cecil.MethodDefinition]::new(
+		'<.cctor>b__3_0',
 		[Mono.Cecil.MethodAttributes]::Assembly.value__ -bor [Mono.Cecil.MethodAttributes]::HideBySig,
 		$ForModule.TypeSystem.Single
 	)
-	${<>c<.cctor>b__2_0}.ImplAttributes = [Mono.Cecil.MethodImplAttributes]::IL
-	${<>c<.cctor>b__2_0}.Body = [Mono.Cecil.Cil.MethodBody]::new(${<>c<.cctor>b__2_0})
+	${<>c<.cctor>b__3_0}.ImplAttributes = [Mono.Cecil.MethodImplAttributes]::IL
+	${<>c<.cctor>b__3_0}.Body = [Mono.Cecil.Cil.MethodBody]::new(${<>c<.cctor>b__3_0})
 
-	Edit-MethodBody ${<>c<.cctor>b__2_0} `
+	Edit-MethodBody ${<>c<.cctor>b__3_0} `
 	{
 		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ldc_R4, [Float] 1)
 		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ret)
 	} > $Null
 
-	${<>cType}.Methods.Add(${<>c<.cctor>b__2_0})
+	${<>cType}.Methods.Add(${<>c<.cctor>b__3_0})
+
+	${<>c<.cctor>b__3_1} = [Mono.Cecil.MethodDefinition]::new(
+		'<.cctor>b__3_1',
+		[Mono.Cecil.MethodAttributes]::Assembly.value__ -bor [Mono.Cecil.MethodAttributes]::HideBySig,
+		$ForModule.TypeSystem.Single
+	)
+	${<>c<.cctor>b__3_1}.ImplAttributes = [Mono.Cecil.MethodImplAttributes]::IL
+	${<>c<.cctor>b__3_1}.Body = [Mono.Cecil.Cil.MethodBody]::new(${<>c<.cctor>b__3_1})
+
+	Edit-MethodBody ${<>c<.cctor>b__3_1} `
+	{
+		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ldc_R4, [Float] 1)
+		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ret)
+	} > $Null
+
+	${<>cType}.Methods.Add(${<>c<.cctor>b__3_1})
 
 	$TinyUIFixForTS3IntegrationType.NestedTypes.Add(${<>cType})
 
@@ -3078,6 +3108,13 @@ function New-TinyUIFixForTS3IntegrationType ([String] $Namespace, [Mono.Cecil.Mo
 		$FloatGetterType
 	)
 	$TinyUIFixForTS3IntegrationType.Fields.Add($TinyUIFixForTS3IntegrationGetUIScale)
+
+	$TinyUIFixForTS3IntegrationGetCursorScale = [Mono.Cecil.FieldDefinition]::new(
+		'getCursorScale',
+		[Mono.Cecil.FieldAttributes]::Public.value__ -bor [Mono.Cecil.FieldAttributes]::Static,
+		$FloatGetterType
+	)
+	$TinyUIFixForTS3IntegrationType.Fields.Add($TinyUIFixForTS3IntegrationGetCursorScale)
 
 	$TinyUIFixForTS3IntegrationCCtor = [Mono.Cecil.MethodDefinition]::new(
 		'.cctor',
@@ -3090,9 +3127,13 @@ function New-TinyUIFixForTS3IntegrationType ([String] $Namespace, [Mono.Cecil.Mo
 	Edit-MethodBody $TinyUIFixForTS3IntegrationCCtor `
 	{
 		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ldsfld, ${<>c<>9})
-		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ldftn, ${<>c<.cctor>b__2_0})
+		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ldftn, ${<>c<.cctor>b__3_0})
 		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Newobj, (Find-InstanceMethod $FloatGetterType .ctor System.Object, System.IntPtr))
 		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Stsfld, $TinyUIFixForTS3IntegrationGetUIScale)
+		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ldsfld, ${<>c<>9})
+		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ldftn, ${<>c<.cctor>b__3_1})
+		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Newobj, (Find-InstanceMethod $FloatGetterType .ctor System.Object, System.IntPtr))
+		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Stsfld, $TinyUIFixForTS3IntegrationGetCursorScale)
 		$IL.Emit([Mono.Cecil.Cil.OpCodes]::Ret)
 	} > $Null
 

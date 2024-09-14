@@ -130,34 +130,63 @@ namespace TinyUIFixForTS3
 			foreach (var type in initialisationTypes) Initialisation(type);
 		}
 
-		public static bool Integrate (Type type)
+		public static void Integrate (Type type)
 		{
-			var getUIScale = type.GetField("getUIScale", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
-
-			if (getUIScale == null) return false;
-			if (!getUIScale.FieldType.IsSubclassOf(typeof(Delegate))) return false;
-
-			var invoke = getUIScale.FieldType.GetMethod("Invoke", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-			if (!invoke.ReturnType.Equals(typeof(float))) return false;
-			if (invoke.GetParameters().Length != 0) return false;
-
-			getUIScale.SetValue(null, UIScaling.GetUIScaleGetter(getUIScale.FieldType));
-
-			var onChangeOfGetUIScale = type.GetMethod(
-				"OnChangeOfGetUIScale",
-				BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static,
-				null,
-				new Type[]{},
-				null
-			);
-
-			if (onChangeOfGetUIScale != null)
 			{
-				onChangeOfGetUIScale.Invoke(null, new object[]{});
-			}
+				var getUIScale = type.GetField("getUIScale", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
 
-			return true;
+				if (getUIScale == null) goto handledUIScale;
+				if (!getUIScale.FieldType.IsSubclassOf(typeof(Delegate))) goto handledUIScale;
+
+				var invoke = getUIScale.FieldType.GetMethod("Invoke", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+				if (!invoke.ReturnType.Equals(typeof(float))) goto handledUIScale;
+				if (invoke.GetParameters().Length != 0) goto handledUIScale;
+
+				getUIScale.SetValue(null, UIScaling.GetUIScaleGetter(getUIScale.FieldType));
+
+				var onChangeOfGetUIScale = type.GetMethod(
+					"OnChangeOfGetUIScale",
+					BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static,
+					null,
+					new Type[]{},
+					null
+				);
+
+				if (onChangeOfGetUIScale != null)
+				{
+					onChangeOfGetUIScale.Invoke(null, new object[]{});
+				}
+			}
+		handledUIScale: {}
+
+			{
+				var getCursorScale = type.GetField("getCursorScale", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+
+				if (getCursorScale == null) goto handledCursorScale;
+				if (!getCursorScale.FieldType.IsSubclassOf(typeof(Delegate))) goto handledCursorScale;
+
+				var invoke = getCursorScale.FieldType.GetMethod("Invoke", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+				if (!invoke.ReturnType.Equals(typeof(float))) goto handledCursorScale;
+				if (invoke.GetParameters().Length != 0) goto handledCursorScale;
+
+				getCursorScale.SetValue(null, UIScaling.GetCursorScaleGetter(getCursorScale.FieldType));
+
+				var onChangeOfGetCursorScale = type.GetMethod(
+					"OnChangeOfGetCursorScale",
+					BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static,
+					null,
+					new Type[]{},
+					null
+				);
+
+				if (onChangeOfGetCursorScale != null)
+				{
+					onChangeOfGetCursorScale.Invoke(null, new object[]{});
+				}
+			}
+		handledCursorScale: {}
 		}
 
 		public static void Hook (Type type)
@@ -230,7 +259,26 @@ namespace TinyUIFixForTS3
 			);
 		}
 
+		public static T GetCursorScaleGetter <T> ()
+		{
+			return (T) GetCursorScaleGetter(typeof(T));
+		}
+
+		public static object GetCursorScaleGetter (Type delegateType)
+		{
+			return Delegate.CreateDelegate(
+				delegateType,
+				typeof(UIScaling).GetMethod("GetCursorScale", BindingFlags.NonPublic | BindingFlags.Static)
+			);
+		}
+
 		private static float GetUIScale ()
+		{
+			/* The actual scale gets patched into the assembly. */
+			return 1f;
+		}
+
+		private static float GetCursorScale ()
 		{
 			/* The actual scale gets patched into the assembly. */
 			return 1f;
@@ -242,6 +290,7 @@ namespace TinyUIFixForTS3
 		public delegate float FloatGetter ();
 
 		public static FloatGetter getUIScale = () => 1f;
+		public static FloatGetter getCursorScale = () => 1f;
 	}
 
 	public static class PatchingState

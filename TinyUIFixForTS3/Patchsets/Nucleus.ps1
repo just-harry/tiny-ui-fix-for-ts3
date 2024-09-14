@@ -18,13 +18,14 @@ $PatchsetDefinitionSchemaVersion = 1
 
 	EffectiveUIScale = [Float] 1
 	EffectiveTextScale = [Float] 1
+	EffectiveCursorScale = [Float] 1
 	EffectiveDisableRuntimeModMismatchCheck = $False
 
 	MakeDefaultConfiguration = `
 	{
 		Param ($Self)
 
-		@{UIScale = [Float] 1}
+		@{UIScale = [Float] 1; CursorScale = [Float] 1}
 	}
 
 	SettleStateBeforePatchsetsAreApplied = `
@@ -70,6 +71,25 @@ $PatchsetDefinitionSchemaVersion = 1
 			}
 		}
 
+		$State.Configuration.Nucleus.CursorScale = if ($Null -eq $State.Configuration.Nucleus.CursorScale)
+		{
+			[Float] 1
+		}
+		else
+		{
+			try
+			{
+				[Float] $State.Configuration.Nucleus.CursorScale
+			}
+			catch
+			{
+				$State.Logger.WriteWarning("The value of `"$($State.Configuration.Nucleus.CursorScale)`" for Nucleus.CursorScale couldn't be coerced to a float, so it's being defaulted to a value of 1.")
+
+				[Float] 1
+			}
+		}
+
+		$State.Configuration.Nucleus.CursorScale = [String] $State.Configuration.Nucleus.CursorScale
 		$State.Configuration.Nucleus.DisableRuntimeModMismatchCheck = if ($Null -eq $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck)
 		{
 			$False
@@ -90,6 +110,7 @@ $PatchsetDefinitionSchemaVersion = 1
 
 		$Self.EffectiveUIScale = $State.Configuration.Nucleus.UIScale
 		$Self.EffectiveTextScale = if ($Null -ne $State.Configuration.Nucleus.TextScale) {$State.Configuration.Nucleus.TextScale} else {$State.Configuration.Nucleus.UIScale}
+		$Self.EffectiveCursorScale = $State.Configuration.Nucleus.CursorScale
 		$Self.EffectiveDisableRuntimeModMismatchCheck = $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 	}
 
@@ -109,6 +130,7 @@ $PatchsetDefinitionSchemaVersion = 1
 			$ModsPath = Join-Path $State.InstallationState.Sims3UserDataPath Mods
 
 			$UIScale = $State.Configuration.Nucleus.UIScale
+			$CursorScale = $State.Configuration.Nucleus.CursorScale
 
 			$TinyUIFixForTS3XMLStream = [IO.MemoryStream]::new([IO.File]::ReadAllBytes((Join-Path $DataPath TinyUIFixForTS3.xml)))
 			$TinyUIFixForTS3DLLStream = [IO.MemoryStream]::new([IO.File]::ReadAllBytes((Join-Path $DataPath TinyUIFixForTS3.dll)))
@@ -116,7 +138,7 @@ $PatchsetDefinitionSchemaVersion = 1
 
 			$TinyUIFixForTS3 = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($TinyUIFixForTS3DLLStream)
 
-			Apply-PatchToTinyUIFixForTS3Assembly $TinyUIFixForTS3 $UIScale $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck
+			Apply-PatchToTinyUIFixForTS3Assembly $TinyUIFixForTS3 $UIScale $CursorScale $State.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 
 			$TinyUIFixForTS3.Write()
 
