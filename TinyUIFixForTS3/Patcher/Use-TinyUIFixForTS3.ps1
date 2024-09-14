@@ -2463,28 +2463,29 @@ function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 
 	$CategoriseResources = `
 	{
-		Param ($Category, $ResourcesByKey, $ParentCategory)
+		Param ($Category, $ResourcesByKey, $SourcePackageByKey, $ParentCategory)
 
-		foreach ($Entry in $ResourcesByKey.GetEnumerator())
+		foreach ($Key in $ResourcesByKey.GetEnumerator())
 		{
-			$Resources = $ResourcesByPackage[$Entry.Value]
+			$Package = $SourcePackageByKey[$Key]
+			$Resources = $ResourcesByPackage[$Package]
 
 			if ($Null -eq $Resources)
 			{
 				$Resources = [PSCustomObject] @{
-					All = [Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]::new(0)
-					ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
-					ByResourceType = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
-					ByCondition = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
+					All = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]::new(0)
+					ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new(0)
+					ByResourceType = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]]::new(0)
+					ByCondition = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]]::new(0)
 				}
-				$ResourcesByPackage[$Entry.Value] = $Resources
+				$ResourcesByPackage[$Package] = $Resources
 			}
 
-			$Resources.All[$Entry.Key] = $Category
+			$Resources.All[$Key] = $Category
 
 			if ($Null -eq $ParentCategory)
 			{
-				$Resources.$Category.Add($Entry.Key) > $Null
+				$Resources.$Category.Add($Key) > $Null
 			}
 			else
 			{
@@ -2493,11 +2494,11 @@ function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 
 				if ($Null -eq $ByCategory)
 				{
-					$ByCategory = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+					$ByCategory = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new(0)
 					$ByParentCategory[$Category] = $ByCategory
 				}
 
-				$ByCategory.Add($Entry.Key) > $Null
+				$ByCategory.Add($Key) > $Null
 			}
 		}
 	}
@@ -2505,14 +2506,14 @@ function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 	$CategorisedCount = ($ResourcesToPatch.ByKey.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
 	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by resource-key.")
 
-	& $CategoriseResources ByKey $ResourcesToPatch.ByKey
+	& $CategoriseResources ByKey $ResourcesToPatch.ByKey $ResourcesToPatch.SourcePackageByKey
 
 	$CategorisedCount = ($ResourcesToPatch.ByResourceType.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
 	[TinyUIFixPSForTS3]::WriteLineQuickly("Categorising $CategorisedCount resource$(if ($CategorisedCount -ne 1) {'s'}) by resource-type.")
 
 	foreach ($ResourceType in $ResourcesToPatch.ByResourceType.GetEnumerator())
 	{
-		& $CategoriseResources $ResourceType.Key $ResourceType.Value ByResourceType
+		& $CategoriseResources $ResourceType.Key $ResourceType.Value $ResourcesToPatch.SourcePackageByKey ByResourceType
 	}
 
 	$CategorisedCount = ($ResourcesToPatch.ByCondition.Values.ForEach{$_.Count} | Measure-Object -Sum).Sum
@@ -2520,7 +2521,7 @@ function Group-ResourcesToPatchByPackage ([PSCustomObject] $ResourcesToPatch)
 
 	foreach ($Condition in $ResourcesToPatch.ByCondition.GetEnumerator())
 	{
-		& $CategoriseResources $Condition.Key $Condition.Value ByCondition
+		& $CategoriseResources $Condition.Key $Condition.Value $ResourcesToPatch.SourcePackageByKey ByCondition
 	}
 
 	$ResourcesByPackage
@@ -3104,10 +3105,10 @@ function Apply-PatchesToResources (
 			$ResourcesByPackage = $UnpatchedResourcesByPatchset[$Patchset.Definition.ID]
 
 			$ResourcesForPackage = [PSCustomObject] @{
-				All = [Collections.Generic.Dictionary[s3pi.Interfaces.IResourceKey, Object]]::new(0)
-				ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
-				ByResourceType = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
-				ByCondition = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]]::new(0)
+				All = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]::new(0)
+				ByKey = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new(0)
+				ByResourceType = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]]::new(0)
+				ByCondition = [Collections.Generic.Dictionary[Object, Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]]::new(0)
 			}
 
 			$ResourcesByPackage.ByPackage[$Entry.Key] = $ResourcesForPackage
@@ -3123,7 +3124,7 @@ function Apply-PatchesToResources (
 
 			foreach ($ResourceType in $Patchset.ResourcesToFind.ByResourceType)
 			{
-				$ResourcesByResourceType = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+				$ResourcesByResourceType = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new(0)
 				$ResourcesForPackage.ByResourceType[$ResourceType] = $ResourcesByResourceType
 
 				$FoundByResourceType = $Entry.Value.ByResourceType[$ResourceType]
@@ -3141,7 +3142,7 @@ function Apply-PatchesToResources (
 
 			foreach ($Condition in $Patchset.ResourcesToFind.ByCondition)
 			{
-				$ResourcesByCondition = [Collections.Generic.HashSet[s3pi.Interfaces.IResourceKey]]::new(0)
+				$ResourcesByCondition = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new(0)
 				$ResourcesForPackage.ByCondition[$Condition.Item1] = $ResourcesByCondition
 
 				$FoundByCondition = $Entry.Value.ByCondition[$Condition.Item1]

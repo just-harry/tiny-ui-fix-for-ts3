@@ -1505,15 +1505,15 @@ namespace TinyUIFixForTS3Patcher
 
 	public static class ResourceManipulator
 	{
-		public struct FoundResources <IResourceKey, ConstructableResourceKey>
-		where ConstructableResourceKey : IResourceKey
+		public struct FoundResources <ConstructableResourceKey>
 		{
-			public Dictionary<IResourceKey, string> byKey;
-			public Dictionary<uint, Dictionary<ConstructableResourceKey, string>> byResourceType;
-			public Dictionary<object, Dictionary<ConstructableResourceKey, string>> byCondition;
+			public HashSet<ConstructableResourceKey> byKey;
+			public Dictionary<uint, HashSet<ConstructableResourceKey>> byResourceType;
+			public Dictionary<object, HashSet<ConstructableResourceKey>> byCondition;
+			public Dictionary<ConstructableResourceKey, string> sourcePackageByKey;
 		}
 
-		public static FoundResources<IResourceKey, ConstructableResourceKey> FindResourcesAcrossPackages <IResourceKey, ConstructableResourceKey, IPackage> (
+		public static FoundResources<ConstructableResourceKey> FindResourcesAcrossPackages <IResourceIndexEntry, IResourceKey, ConstructableResourceKey, IPackage> (
 			Dictionary<ulong, IEnumerable<Object>> prioritisedFiles,
 			DirectoryInfo baseDirectory,
 			HashSet<IResourceKey> byKey,
@@ -1521,22 +1521,25 @@ namespace TinyUIFixForTS3Patcher
 			ValueTuple<object, Func<IPackage, IResourceKey, bool>>[] byCondition,
 			Func<int, string, bool, IPackage> openPackage,
 			Action<int, IPackage> closePackage,
-			Func<IPackage, IEnumerable<IResourceKey>> getResourceListOfPackage,
+			Func<IPackage, IEnumerable<IResourceIndexEntry>> getResourceListOfPackage,
 			Func<IResourceKey, ulong> getInstanceOfResourceKey,
 			Func<IResourceKey, uint> getResourceTypeOfResourceKey,
 			Func<IResourceKey, uint> getResourceGroupOfResourceKey,
 			Func<IResourceKey, ConstructableResourceKey> constructResourceKey,
 			Action<Exception> logWarning
 		)
+		where IResourceIndexEntry : IResourceKey
 		where ConstructableResourceKey : IResourceKey
+		where IResourceKey : class
 		{
-			var foundByKey = new Dictionary<IResourceKey, string>(byKey.Count);
-			var foundByResourceType = new Dictionary<uint, Dictionary<ConstructableResourceKey, string>>(byResourceType.Length);
-			var foundByCondition = new Dictionary<object, Dictionary<ConstructableResourceKey, string>>();
+			var foundByKey = new HashSet<ConstructableResourceKey>();
+			var foundByResourceType = new Dictionary<uint, HashSet<ConstructableResourceKey>>();
+			var foundByCondition = new Dictionary<object, HashSet<ConstructableResourceKey>>();
+			var sourcePackageByKey = new Dictionary<ConstructableResourceKey, string>();
 
 			foreach (uint resourceType in byResourceType)
 			{
-				foundByResourceType[resourceType] = new Dictionary<ConstructableResourceKey, string>();
+				foundByResourceType[resourceType] = new HashSet<ConstructableResourceKey>();
 			}
 
 			var priorities = prioritisedFiles.Keys.ToArray();
@@ -1549,6 +1552,7 @@ namespace TinyUIFixForTS3Patcher
 				foreach (var file in files)
 				{
 					string filePath = file is string ? Path.Combine(baseDirectory.FullName, file as string) : (file as FileInfo).FullName;
+					IResourceKey lastKey = default(IResourceKey);
 
 					try
 					{
@@ -1558,6 +1562,8 @@ namespace TinyUIFixForTS3Patcher
 						{
 							foreach (var entry in getResourceListOfPackage(package))
 							{
+								lastKey = entry;
+
 								foreach (var key in byKey)
 								{
 									if (
@@ -1566,7 +1572,9 @@ namespace TinyUIFixForTS3Patcher
 										&& getResourceGroupOfResourceKey(key) == getResourceGroupOfResourceKey(entry)
 									)
 									{
-										foundByKey[key] = filePath;
+										ConstructableResourceKey constructedKey = constructResourceKey(key);
+										foundByKey.Add(constructedKey);
+										sourcePackageByKey[constructedKey] = filePath;
 
 										byKey.Remove(key);
 
@@ -1578,15 +1586,15 @@ namespace TinyUIFixForTS3Patcher
 								{
 									if (resourceType == getResourceTypeOfResourceKey(entry))
 									{
-										Dictionary<ConstructableResourceKey, string> found = null;
+										HashSet<ConstructableResourceKey> found = null;
 
 										foundByResourceType.TryGetValue(resourceType, out found);
 
 										ConstructableResourceKey key = constructResourceKey(entry);
 
-										if (!found.ContainsKey(key))
+										if (found.Add(key))
 										{
-											found.Add(key, filePath);
+											sourcePackageByKey[key] = filePath;
 										}
 
 										goto examinedEntry;
@@ -1597,19 +1605,19 @@ namespace TinyUIFixForTS3Patcher
 								{
 									if (condition.Item2(package, entry))
 									{
-										Dictionary<ConstructableResourceKey, string> found = null;
+										HashSet<ConstructableResourceKey> found = null;
 
 										if (!foundByCondition.TryGetValue(condition.Item1, out found))
 										{
-											found = new Dictionary<ConstructableResourceKey, string>();
+											found = new HashSet<ConstructableResourceKey>();
 											foundByCondition[condition.Item1] = found;
 										}
 
 										ConstructableResourceKey key = constructResourceKey(entry);
 
-										if (!found.ContainsKey(key))
+										if (found.Add(key))
 										{
-											found.Add(key, filePath);
+											sourcePackageByKey[key] = filePath;
 										}
 
 										goto examinedEntry;
@@ -1636,10 +1644,11 @@ namespace TinyUIFixForTS3Patcher
 			}
 		finishedSearchingPackages: {}
 
-			return new FoundResources<IResourceKey, ConstructableResourceKey>{
+			return new FoundResources<ConstructableResourceKey>{
 				byKey = foundByKey,
 				byResourceType = foundByResourceType,
-				byCondition = foundByCondition
+				byCondition = foundByCondition,
+				sourcePackageByKey = sourcePackageByKey
 			};
 		}
 
