@@ -20,7 +20,7 @@ Otherwise, on previous versions of Windows: [at-least version 4.7.1 of the .NET 
 
 #### Step-by-step
 
-1. Download the patch's Batch file, `tiny-ui-fix-for-ts3.bat`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.4.3/tiny-ui-fix-for-ts3.bat](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.4.3/tiny-ui-fix-for-ts3.bat).
+1. Download the patch's Batch file, `tiny-ui-fix-for-ts3.bat`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.5.0/tiny-ui-fix-for-ts3.bat](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.5.0/tiny-ui-fix-for-ts3.bat).
 2. Run the downloaded Batch file by double-clicking it.
 3. Follow the instructions provided by the script.
 </details>
@@ -37,7 +37,7 @@ At-least version 10.13 of macOS (version 10.13 is High Sierra).
 
 #### Step-by-step
 
-1. Download the zip containing the patch's Shell script, `tiny-ui-fix-for-ts3.command.zip`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.4.3/tiny-ui-fix-for-ts3.command.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.4.3/tiny-ui-fix-for-ts3.command.zip).
+1. Download the zip containing the patch's Shell script, `tiny-ui-fix-for-ts3.command.zip`, from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.5.0/tiny-ui-fix-for-ts3.command.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.5.0/tiny-ui-fix-for-ts3.command.zip).
 2. Open the downloaded zip file by double-clicking it. (The Safari browser may automatically take the script out of the zip file).
 3. Right-click the `tiny-ui-fix-for-ts3.command` file and select "Open".
 4. Select "Open" in the dialog that pops up.
@@ -54,7 +54,7 @@ At-least version 10.13 of macOS (version 10.13 is High Sierra).
 
 Version 5.1 of PowerShell, or version 7.0-or-later of PowerShell.
 
-The PowerShell script and its accompanying files can be downloaded as a zip-archive from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.4.3/tiny-ui-fix-for-ts3.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.4.3/tiny-ui-fix-for-ts3.zip). \
+The PowerShell script and its accompanying files can be downloaded as a zip-archive from [https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.5.0/tiny-ui-fix-for-ts3.zip](https://github.com/just-harry/tiny-ui-fix-for-ts3/releases/download/v1.5.0/tiny-ui-fix-for-ts3.zip). \
 Extract that zip-archive to a directory, and then run the script in PowerShell via the `Use-TinyUIFixForTS3.ps1` file at the root of the directory.
 </details>
 
@@ -79,16 +79,21 @@ The script prompting you to start the configurator:
 ![configurator-prompt](https://github.com/just-harry/tiny-ui-fix-for-ts3/assets/12306246/8fab41c5-db33-42b3-808a-9a4d193d919a)
 
 What the configurator looks like:
-![configurator-screen](https://github.com/just-harry/tiny-ui-fix-for-ts3/assets/12306246/28212569-a74e-4718-a8c1-c6077ceabe55)
+![configurator-screen](https://github.com/user-attachments/assets/bc54ab64-6be3-4037-aa74-c59861e211f5)
 
 The configurator is used as follows: \
 At the left, we have the "Configuration" panel, this is used to configure the active patchsets.
 
-At the moment there are two options: \
+At the moment there are six options: \
 **UI Scale**: which is a multiplier which controls how big the game's UI is.
 A value of one would keep the UI the same size as it normally is, whereas a value of two would make the UI twice as big as usual. \
 **Text Scale**: which is a multiplier which controls how big the game's text is; by default, this is the same as the UI Scale. \
 This is independent of the UI Scale, so if the Text Scale is set to be much larger than the UI Scale: text may overlap other elements of the UI.
+**Cursor Scale**: which is a multiplier which controls how big the game's mouse cursors are.
+A value of one would keep mouse cursors the same size as they normally are, whereas a value of two would make mouse cursors twice as big as usual. \
+**Cursor Scaling Algorithm**: which controls what image scaling algorithm is used to change the size of mouse cursor images, when cursor scaling is in effect.
+**Use sharpened cursor scaling?**: which controls whether or not mouse cursor images are oversampled via nearest-neighbour scaling before the selected cursor scaling algorithm is used.
+**Disable run-time mod mismatch check?**: which controls whether or not the mod will check if any other mods have been uninstalled or installed, since the script was last run, when the game loads into the main menu, so that it can issue a warning to re-run the script to avoid errors.
 
 ---
 
@@ -113,6 +118,7 @@ Lastly, we're now at the rightmost panel, which is the "Actions" panel, this is 
 "**Export load-order**" will write the current patchset load-order to the "Import/Export" text-box. \
 "**Import load-order**" will read and use a patchset load-order from the "Import/Export" text-box. \
 "**Check for updates**" will check if there are any updates available for the Tiny UI Fix. \
+"**Uninstall**" will uninstall the Tiny UI Fix. \
 "**Cancel**" will cancel any changes that have been made, and will cause the script to exit.
 
 ---
@@ -186,6 +192,8 @@ If your mod relies on hard-coded adjustments being made to the coordinates or di
 The Tiny UI Fix has been designed to make it easy for other mods to integrate with the Tiny UI Fix's UI scaling, so no changes are needed to your mod's build process, nor is an assembly reference required, nor does the load-order of the mods matter.
 
 To integrate with the UI scaling added by the Tiny UI Fix: define a class named `TinyUIFixForTS3Integration` in a namespace of your mod, and then in that class define a static member named `getUIScale`, the type of the `getUIScale` member should be a delegate-type that takes no parameters and returns a float, make the default value for the `getUIScale` member a delegate that returns `1.0f` (that way, if the Tiny UI Fix isn't present, your UI scale will be usual scale of 1x).
+
+(The same can be done for the cursor scale, except that the static member in `TinyUIFixForTS3Integration` should be called `getCursorScale` instead of `getUIScale`.)
 
 To illustrate, your code should look something like:
 
