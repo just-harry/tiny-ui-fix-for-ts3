@@ -143,6 +143,29 @@ namespace TinyUIFixForTS3Patcher
 			return ValueToString(ValueFromString(value) * multiplier);
 		}
 
+		public static float Truncate (float value)
+		{
+			return (float) Math.Truncate(value);
+		}
+
+		public static Vector2 Truncate (Vector2 point)
+		{
+			return new Vector2(
+				(float) Math.Truncate(point.X),
+				(float) Math.Truncate(point.Y)
+			);
+		}
+
+		public static Vector4 Truncate (Vector4 area)
+		{
+			return new Vector4(
+				(float) Math.Truncate(area.X),
+				(float) Math.Truncate(area.Y),
+				(float) Math.Truncate(area.Z),
+				(float) Math.Truncate(area.W)
+			);
+		}
+
 		public struct LayoutWinProc
 		{
 			public enum Type : byte
@@ -201,7 +224,8 @@ namespace TinyUIFixForTS3Patcher
 			{
 				None = 0,
 				WinProcsForScrollbar = 1 << 0,
-				WinProcsForSlider = 1 << 1
+				WinProcsForSlider = 1 << 1,
+				TruncatedBorders = 1 << 2
 			}
 
 			public NodeScalingState (IEnumerable<ExtraScaler> extraScalers)
@@ -344,28 +368,57 @@ namespace TinyUIFixForTS3Patcher
 						else if (propertyName.Value == "Bottom") {bottom = property;}
 					}
 
-					if (left != null)
+					if ((state.state & NodeScalingState.State.TruncatedBorders) == 0)
 					{
-						XmlNode leftValue = left.Attributes.GetNamedItem("value");
-						leftValue.Value = ScaleValueStringBy(leftValue.Value, multiplier);
-					}
+						if (left != null)
+						{
+							XmlNode leftValue = left.Attributes.GetNamedItem("value");
+							leftValue.Value = ScaleValueStringBy(leftValue.Value, multiplier);
+						}
 
-					if (top != null)
-					{
-						XmlNode topValue = top.Attributes.GetNamedItem("value");
-						topValue.Value = ScaleValueStringBy(topValue.Value, multiplier);
-					}
+						if (top != null)
+						{
+							XmlNode topValue = top.Attributes.GetNamedItem("value");
+							topValue.Value = ScaleValueStringBy(topValue.Value, multiplier);
+						}
 
-					if (right != null)
-					{
-						XmlNode rightValue = right.Attributes.GetNamedItem("value");
-						rightValue.Value = ScaleValueStringBy(rightValue.Value, multiplier);
-					}
+						if (right != null)
+						{
+							XmlNode rightValue = right.Attributes.GetNamedItem("value");
+							rightValue.Value = ScaleValueStringBy(rightValue.Value, multiplier);
+						}
 
-					if (bottom != null)
+						if (bottom != null)
+						{
+							XmlNode bottomValue = bottom.Attributes.GetNamedItem("value");
+							bottomValue.Value = ScaleValueStringBy(bottomValue.Value, multiplier);
+						}
+					}
+					else
 					{
-						XmlNode bottomValue = bottom.Attributes.GetNamedItem("value");
-						bottomValue.Value = ScaleValueStringBy(bottomValue.Value, multiplier);
+						if (left != null)
+						{
+							XmlNode leftValue = left.Attributes.GetNamedItem("value");
+							leftValue.Value = ValueToString(Truncate(ScaleValueBy(ValueFromString(leftValue.Value), multiplier)));
+						}
+
+						if (top != null)
+						{
+							XmlNode topValue = top.Attributes.GetNamedItem("value");
+							topValue.Value = ValueToString(Truncate(ScaleValueBy(ValueFromString(topValue.Value), multiplier)));
+						}
+
+						if (right != null)
+						{
+							XmlNode rightValue = right.Attributes.GetNamedItem("value");
+							rightValue.Value = ValueToString(Truncate(ScaleValueBy(ValueFromString(rightValue.Value), multiplier)));
+						}
+
+						if (bottom != null)
+						{
+							XmlNode bottomValue = bottom.Attributes.GetNamedItem("value");
+							bottomValue.Value = ValueToString(Truncate(ScaleValueBy(ValueFromString(bottomValue.Value), multiplier)));
+						}
 					}
 				}
 				else if (nodeClass.Value == "ImageDrawable" || nodeClass.Value == "IconDrawable")
@@ -719,13 +772,13 @@ namespace TinyUIFixForTS3Patcher
 					if (cellArea != null)
 					{
 						XmlNode cellAreaValue = cellArea.Attributes.GetNamedItem("value");
-						cellAreaValue.Value = ScalePointStringBy(cellAreaValue.Value, multiplier);
+						cellAreaValue.Value = PointToString(Truncate(ScalePointBy(PointFromString(cellAreaValue.Value), multiplier)));
 					}
 
 					if (cellPadding != null)
 					{
 						XmlNode cellPaddingValue = cellPadding.Attributes.GetNamedItem("value");
-						cellPaddingValue.Value = ScaleAreaStringBy(cellPaddingValue.Value, multiplier);
+						cellPaddingValue.Value = AreaToString(Truncate(ScaleAreaBy(AreaFromString(cellPaddingValue.Value), multiplier)));
 					}
 
 					if (gridPadding != null)
@@ -1013,17 +1066,19 @@ namespace TinyUIFixForTS3Patcher
 					if (defaultColumnWidth != null)
 					{
 						XmlNode defaultColumnWidthValue = defaultColumnWidth.Attributes.GetNamedItem("value");
-						defaultColumnWidthValue.Value = ScaleValueStringBy(defaultColumnWidthValue.Value, multiplier);
+						defaultColumnWidthValue.Value = ValueToString(Truncate(ScaleValueBy(ValueFromString(defaultColumnWidthValue.Value), multiplier)));
 					}
 
 					if (defaultRowHeight != null)
 					{
 						XmlNode defaultRowHeightValue = defaultRowHeight.Attributes.GetNamedItem("value");
-						defaultRowHeightValue.Value = ScaleValueStringBy(defaultRowHeightValue.Value, multiplier);
+						defaultRowHeightValue.Value = ValueToString(Truncate(ScaleValueBy(ValueFromString(defaultRowHeightValue.Value), multiplier)));
 					}
 
-
+					state.state |= NodeScalingState.State.TruncatedBorders;
 					if (cellGutters != null) {foreach (XmlNode border in cellGutters) {ScaleNodeBy(border, multiplier, ref state);}}
+					state.state &= ~NodeScalingState.State.TruncatedBorders;
+
 					if (clipGutters != null) {foreach (XmlNode border in clipGutters) {ScaleNodeBy(border, multiplier, ref state);}}
 					if (gutters != null) {foreach (XmlNode border in gutters) {ScaleNodeBy(border, multiplier, ref state);}}
 				}
