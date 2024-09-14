@@ -3423,6 +3423,7 @@ function Apply-PatchesToResources (
 
 
 	$AssemblyStreams = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, IO.MemoryStream]]::new(8)
+	$AssembliesAlreadyInGeneratedPackage = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, s3pi.Interfaces.IResourceIndexEntry]]::new(8)
 
 	$AddAssemblyStream = `
 	{
@@ -4038,6 +4039,7 @@ function Apply-PatchesToResources (
 			if ($Replacement.ResourceKey.ResourceType -eq [TinyUIFixPSForTS3]::S3SATypeID)
 			{
 				& $AddAssemblyStream $State.IntoPackage $IndexEntry
+				$AssembliesAlreadyInGeneratedPackage[$Key] = $IndexEntry
 			}
 		}
 	}
@@ -4153,6 +4155,13 @@ function Apply-PatchesToResources (
 	{
 		$PatchedAssembly = $State.Assemblies.Resolver.Resolve($State.Assemblies.AssemblyKeysByResourceKey[$ResourceKey])
 		$AssemblyStream = $AssemblyStreams[$ResourceKey]
+
+		$ExistingResourceIndexEntry = $Null
+
+		if ($AssembliesAlreadyInGeneratedPackage.TryGetValue($ResourceKey, [Ref] $ExistingResourceIndexEntry))
+		{
+			$State.IntoPackage.DeleteResource($ExistingResourceIndexEntry)
+		}
 
 		$PatchedResource = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::S3SATypeID)
 		$PatchedAssembly.Write()
