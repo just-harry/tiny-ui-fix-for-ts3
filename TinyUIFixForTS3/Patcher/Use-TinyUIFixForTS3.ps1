@@ -3325,6 +3325,56 @@ function Apply-PatchesToResources (
 
 	$State.EnqueuedScalingOfImages = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]::new()
 
+	$EnqueueScalingOfImages = `
+	{
+		Param ($ImageScalings)
+
+		foreach ($ImageScaling in $ImageScalings)
+		{
+			$Scalings = $Null
+
+			if (-not $State.EnqueuedScalingOfImages.TryGetValue($ImageScaling.ResourceKey, [Ref] $Scalings))
+			{
+				$Scalings = @{Queued = [Collections.Generic.List[Object]]::new()}
+				$State.EnqueuedScalingOfImages[$ImageScaling.ResourceKey] = $Scalings
+			}
+
+			$Scalings.Queued.Add($ImageScaling)
+		}
+	}
+
+	foreach ($Patchset in $Patchsets)
+	{
+		if ($Null -ne $Patchset.Instance.DuringUIScaling)
+		{
+			if ($Patchset.Instance.DuringUIScaling.EnqueueScalingOfImages -is [ScriptBlock])
+			{
+				[TinyUIFixPSForTS3]::WriteLineQuickly("Getting images to scale from the `"$($Patchset.Definition.ID)`" patchset.")
+
+				& $EnqueueScalingOfImages $(
+					$State.Logger.CurrentPatchset = $Patchset
+					& $Patchset.Instance.DuringUIScaling.EnqueueScalingOfImages -Self $Patchset.Instance -State $State
+				)
+			}
+		}
+	}
+
+	foreach ($Patchset in $PatchsetsRetro)
+	{
+		if ($Null -ne $Patchset.Instance.DuringUIScaling)
+		{
+			if ($Patchset.Instance.DuringUIScaling.EnqueueScalingOfImagesRetro -is [ScriptBlock])
+			{
+				[TinyUIFixPSForTS3]::WriteLineQuickly("Getting images to scale, retro, from the `"$($Patchset.Definition.ID)`" patchset.")
+
+				& $EnqueueScalingOfImages $(
+					$State.Logger.CurrentPatchset = $Patchset
+					& $Patchset.Instance.DuringUIScaling.EnqueueScalingOfImagesRetro -Self $Patchset.Instance -State $State
+				)
+			}
+		}
+	}
+
 
 	$ResourcesByPackage = $UnpatchedResourcesByPackage
 
@@ -3500,6 +3550,29 @@ function Apply-PatchesToResources (
 			$True
 			2
 		}
+		elseif ($Category -ceq 'ImageScaling')
+		{
+			$ImageScaling = $State.EnqueuedScalingOfImages[[s3pi.Interfaces.TGIBlock]::new(1, $Null, $IndexEntry)]
+
+			$Image = [s3pi.WrapperDealer.WrapperDealer]::GetResource(1, $Package, $IndexEntry)
+
+			$ImageScaling.ImageData = if ($Image.Stream -is [IO.MemoryStream])
+			{
+				$Image.Stream
+			}
+			else
+			{
+				$Stream = [IO.MemoryStream]::new()
+				$Image.Stream.Position = 0
+				$Image.Stream.CopyTo($Stream)
+				$Stream.Position = 0
+				$Stream
+			}
+
+			$Null
+			$True
+			3
+		}
 		else
 		{
 			$Null
@@ -3513,6 +3586,7 @@ function Apply-PatchesToResources (
 		$OutputUnpackedAssemblyDirectory = New-Item -ItemType Directory -Force -Path $OutputUnpackedAssemblyDirectoryPath
 	}
 
+	$EnqueuedScalingOfImagesByPackage = $State.EnqueuedScalingOfImages.GetEnumerator() | Group-Object @{Expression = {$UnpatchedResources.SourcePackageByKey[$_.Key]}} -AsHashtable
 	$PatchableResources = [Collections.Generic.Dictionary[String, Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]]::new()
 
 	foreach ($Entry in $UnpatchedResourcesByPatchset.Nucleus.ByPackage.GetEnumerator())
