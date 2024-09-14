@@ -2,6 +2,56 @@
 
 ## Changelog
 
+### Version 1.5.3
+
+#### User-facing
+
+- The Tiny UI Fix can now scale mouse cursors! (Most of them—not all.)
+- Severe issues with scrolling at most non-integral UI scales have been fixed; the coordinates for grid and item-grid cells are now truncated to integers.
+- The script is now significantly faster at scaling resources in packages.
+- There is a new "Slider Enhancements" patchset, which enhances sliders in many various ways—mostly for CAS.
+- The left/right side radio-buttons is CAS's Tattoos menu are no longer stretched.
+- The Costume Makeup window in CAS is no longer too small when using NRaas Master Controller's CAS integration.
+- Warnings are now logged with more context when finding resources across packages.
+- The runtime mod mismatch check now examines a sampling of `STBL` resource-keys, to avoid most false negatives for script mods loaded not by an XML tuning but via other scripts.
+
+### "Slider Enhancements" patchset
+The "Slider Enhancements" patchset enhances sliders in the following ways:
+
+- Right-clicking a slider will bring up a dialog that allows a numeric value to be typed in for the slider.
+- When the mouse is over a slider, keyboard keys can be used to change its value, those keys are:
+	- `A` to decrement the slider by 1.
+	- `D` to increment the slider by 1.
+	- `S` to decrement the slider by 8.
+	- `W` to increment the slider by 8.
+	- `F` to decrement the slider by 32.
+	- `R` to increment the slider by 32.
+	- `Shift`+`A` to decrement the slider by 64.
+	- `Shift`+`D` to increment the slider by 64.
+	- `Shift`+`S` to decrement the slider by 128.
+	- `Shift`+`W` to increment the slider by 128.
+	- `Shift`+`F` to decrement the slider by 256.
+	- `Shift`+`R` to increment the slider by 256.
+- In Create a Sim, this functionality is extended to apply to the last slider that the mouse was over—making it possible to change a slider while adjusting the camera.
+- There are ten save-slots available for slider values, each corresponding to a number key on the keyboard. \
+Pressing `Alt`+`<a number key>` will save the current value of a slider to the corresponding save slot. \
+Pressing `<a number key>` will load a saved value from the corresponding save slot. \
+\
+The default values of the save-slots, from zero-to-ten, are: 0; -256; -128; 0; 128; 256; -64; 64; -32; 32. \
+Shift+0 will reset all save-slots to their default value.
+\
+The behaviour for whether or not a slider is focussed is the same as for the keyboard keys for decrementing and incrementing a slider.
+- In Create a Sim, slider values can be set beyond their usual limits via this functionality.
+
+#### Developer-side
+
+- Patchsets can now rewrite layouts before they are scaled, via the `BeforeUIScaling.SupplyLayoutTransformers` member.
+- The package sources returned by `FindResourcesAcrossPackages` are now normalised, and returned resource keys are now all of the same type.
+- `FindResourcesAcrossPackages` now supplies resource-index-entries to conditional filters, instead of only a resource-key.
+- Images can now be scaled, via FFmpeg.
+- Patchsets can now request that images be scaled, via the `DuringUIScaling.EnqueueScalingOfImages` member.
+- The function that `Apply-ConvenientPatchesToAssemblies` uses to scale values is now parametrised.
+
 ### Version 1.4.3
 
 #### User-facing
