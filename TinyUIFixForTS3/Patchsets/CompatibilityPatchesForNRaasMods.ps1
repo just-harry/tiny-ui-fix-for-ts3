@@ -8,7 +8,7 @@
 #>
 
 $ID = 'CompatibilityPatchesForNRaasMods'
-$Version = '1.0.0'
+$Version = '1.0.1'
 $PatchsetDefinitionSchemaVersion = 1
 
 [PSCustomObject] @{
