@@ -1766,6 +1766,66 @@ namespace TinyUIFixForTS3Patcher
 			}
 		}
 
+		public enum RecognisedXMLResourceType
+		{
+			unknown,
+			cursorSet
+		}
+
+		public static RecognisedXMLResourceType TryToRecogniseXMLResourceType <IPackage, IResourceIndexEntry> (
+			IPackage package,
+			IResourceIndexEntry resourceIndexEntry,
+			Func<IPackage, IResourceIndexEntry, Stream> getStreamForResource
+		)
+		{
+			var stream = getStreamForResource(package, resourceIndexEntry);
+			stream.Position = 0;
+
+			var xmlSettings = new XmlReaderSettings();
+			xmlSettings.IgnoreComments = true;
+			xmlSettings.IgnoreWhitespace = true;
+			xmlSettings.ConformanceLevel = ConformanceLevel.Auto;
+			xmlSettings.CheckCharacters = false;
+
+			var xmlReader = XmlReader.Create(stream, xmlSettings);
+
+			try
+			{
+				if (xmlReader.MoveToContent() != XmlNodeType.Element)
+				{
+					goto unknown;
+				}
+			}
+			catch (Exception)
+			{
+				goto unknown;
+			}
+
+			if (xmlReader.Name == "CursorSet")
+			{
+				return RecognisedXMLResourceType.cursorSet;
+			}
+
+		unknown: {}
+			return RecognisedXMLResourceType.unknown;
+		}
+
+		public static Func<IPackage, IResourceIndexEntry, bool> MakeIsCursorSetResourcePredicate <IPackage, IResourceIndexEntry, IResourceKey> (
+			Func<IResourceKey, uint> getResourceTypeOfResourceKey,
+			Func<IPackage, IResourceIndexEntry, Stream> getStreamForResource
+		)
+		where IResourceIndexEntry : IResourceKey
+		{
+			return (IPackage package, IResourceIndexEntry resourceIndexEntry) => (
+				   getResourceTypeOfResourceKey(resourceIndexEntry) == 0x0333406C
+				&& TryToRecogniseXMLResourceType(
+					package,
+					resourceIndexEntry,
+					getStreamForResource
+				) == RecognisedXMLResourceType.cursorSet
+			);
+		}
+
 		public static void AppendModFingerprintingResourceKeysTo <IResourceKey, IPackage> (
 			Stream stream,
 			IPackage package,
