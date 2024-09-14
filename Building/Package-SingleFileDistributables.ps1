@@ -49,6 +49,7 @@ $Files = @(
 	@{File = & $Get Patchsets/VanillaCoreCompatibilityPatch.ps1; Encoding = $UTF8; Destination = 'Patchsets/VanillaCoreCompatibilityPatch.ps1'}
 	@{File = & $Get Patchsets/CompatibilityPatchesForNRaasMods.ps1; Encoding = $UTF8; Destination = 'Patchsets/CompatibilityPatchesForNRaasMods.ps1'}
 	@{File = & $Get Patchsets/CompatibilityPatchForSmoothPatch.ps1; Encoding = $UTF8; Destination = 'Patchsets/CompatibilityPatchForSmoothPatch.ps1'}
+	@{File = & $Get Patchsets/SliderEnhancements.ps1; Encoding = $UTF8; Destination = 'Patchsets/SliderEnhancements.ps1'}
 	@{File = & $Get Data/ConfiguratorIndexPage.ps1; Encoding = $UTF8; Destination = 'Data/ConfiguratorIndexPage.ps1'}
 	@{File = & $Get Data/Unblock-PowerShellForControlledFolderAccess.ps1; Encoding = $UTF8; Destination = 'Data/Unblock-PowerShellForControlledFolderAccess.ps1'}
 	@{File = & $Get Data/TinyUIFixForTS3.xml; Encoding = $UTF8; Destination = 'Data/TinyUIFixForTS3.xml'}
@@ -56,6 +57,7 @@ $Files = @(
 	@{File = & $Get Data/ScaledHorizontalSliderMimic.xml; Encoding = $UTF8; Destination = 'Data/ScaledHorizontalSliderMimic.xml'}
 	@{File = & $Get Data/ScaledVerticalScrollbarMimic.xml; Encoding = $UTF8; Destination = 'Data/ScaledVerticalScrollbarMimic.xml'}
 	@{File = & $Get Data/ScaledVerticalSliderMimic.xml; Encoding = $UTF8; Destination = 'Data/ScaledVerticalSliderMimic.xml'}
+	@{File = & $Get Data/SliderEnhancementTriggers.triggers; Encoding = $UTF8; Destination = 'Data/SliderEnhancementTriggers.triggers'}
 	@{File = & $Get Binaries/Mono.Cecil.dll; Destination = 'Binaries/Mono.Cecil.dll'}
 	@{File = & $Get Binaries/Mono.Cecil.pdb; Destination = 'Binaries/Mono.Cecil.pdb'}
 	@{File = & $Get Binaries/Mono.Cecil.Rocks.dll; Destination = 'Binaries/Mono.Cecil.Rocks.dll'}

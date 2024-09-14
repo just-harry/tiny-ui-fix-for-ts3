@@ -1231,6 +1231,7 @@ $TinyUIFixPSForTS3ResourceKeys = @{
 	TinyUIFixForTS3ScaledHorizontalScrollbarMimic = $Null
 	TinyUIFixForTS3ScaledVerticalSliderMimic = $Null
 	TinyUIFixForTS3ScaledHorizontalSliderMimic = $Null
+	TinyUIFixForTS3SliderEnhancementTriggers = $Null
 	TinyUIFixForTS3ModFingerprintingData = $Null
 }
 
@@ -2179,6 +2180,7 @@ function Initialize-TinyUIFixResourceKeys
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalScrollbarMimic = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0xcd5e4225f2eec646 -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledVerticalSliderMimic = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0x92e4874f8b9f3d39 -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ScaledHorizontalSliderMimic = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::LAYOTypeID, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0xb30738093abb4eab -band [UInt64]::MaxValue)
+	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3SliderEnhancementTriggers = [s3pi.Interfaces.TGIBlock]::new(1, $Null, [TinyUIFixPSForTS3]::TRIGTypeID, 0x00000000, 0x2e0546f84f99cfcd -band [UInt64]::MaxValue)
 	$TinyUIFixPSForTS3ResourceKeys.TinyUIFixForTS3ModFingerprintingData = [s3pi.Interfaces.TGIBlock]::new(1, $Null, 0x00000000, [TinyUIFixPSForTS3]::GroupID -band [UInt32]::MaxValue, 0x746ffaa252105165 -band [UInt64]::MaxValue)
 }
 

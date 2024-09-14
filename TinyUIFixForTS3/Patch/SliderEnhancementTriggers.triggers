@@ -1,0 +1,75 @@
+#define	DecrementSliderSlightly 0x84857050
+#define	DecrementSliderModerately 0x84857051
+#define	DecrementSliderExtremely 0x84857052
+#define	DecrementSliderSlightlyShift 0x84857053
+#define	DecrementSliderModeratelyShift 0x84857054
+#define	DecrementSliderExtremelyShift 0x84857055
+
+#define	IncrementSliderSlightly 0x84857060
+#define	IncrementSliderModerately 0x84857061
+#define	IncrementSliderExtremely 0x84857062
+#define	IncrementSliderSlightlyShift 0x84857063
+#define	IncrementSliderModeratelyShift 0x84857064
+#define	IncrementSliderExtremelyShift 0x84857065
+
+#define	LoadSliderSaveState0 0x84857070
+#define	LoadSliderSaveState1 0x84857071
+#define	LoadSliderSaveState2 0x84857072
+#define	LoadSliderSaveState3 0x84857073
+#define	LoadSliderSaveState4 0x84857074
+#define	LoadSliderSaveState5 0x84857075
+#define	LoadSliderSaveState6 0x84857076
+#define	LoadSliderSaveState7 0x84857077
+#define	LoadSliderSaveState8 0x84857078
+#define	LoadSliderSaveState9 0x84857079
+
+#define	SaveSliderSaveState0 0x84857080
+#define	SaveSliderSaveState1 0x84857081
+#define	SaveSliderSaveState2 0x84857082
+#define	SaveSliderSaveState3 0x84857083
+#define	SaveSliderSaveState4 0x84857084
+#define	SaveSliderSaveState5 0x84857085
+#define	SaveSliderSaveState6 0x84857086
+#define	SaveSliderSaveState7 0x84857087
+#define	SaveSliderSaveState8 0x84857088
+#define	SaveSliderSaveState9 0x84857089
+
+#define	ResetSliderSaveStates 0x84857090
+
+a = DecrementSliderSlightly
+shift a = DecrementSliderSlightlyShift
+d = IncrementSliderSlightly
+shift d = IncrementSliderSlightlyShift
+
+s = DecrementSliderModerately
+shift s = DecrementSliderModeratelyShift
+w = IncrementSliderModerately
+shift w = IncrementSliderModeratelyShift
+
+f = DecrementSliderExtremely
+shift f = DecrementSliderExtremelyShift
+r = IncrementSliderExtremely
+shift r = IncrementSliderExtremelyShift
+
+0 = LoadSliderSaveState0
+alt 0 = SaveSliderSaveState0
+1 = LoadSliderSaveState1
+alt 1 = SaveSliderSaveState1
+2 = LoadSliderSaveState2
+alt 2 = SaveSliderSaveState2
+3 = LoadSliderSaveState3
+alt 3 = SaveSliderSaveState3
+4 = LoadSliderSaveState4
+alt 4 = SaveSliderSaveState4
+5 = LoadSliderSaveState5
+alt 5 = SaveSliderSaveState5
+6 = LoadSliderSaveState6
+alt 6 = SaveSliderSaveState6
+7 = LoadSliderSaveState7
+alt 7 = SaveSliderSaveState7
+8 = LoadSliderSaveState8
+alt 8 = SaveSliderSaveState8
+9 = LoadSliderSaveState9
+alt 9 = SaveSliderSaveState9
+
+shift 0 = ResetSliderSaveStates

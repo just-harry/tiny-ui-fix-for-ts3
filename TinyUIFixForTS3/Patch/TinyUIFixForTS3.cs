@@ -2084,12 +2084,23 @@ namespace TinyUIFixForTS3.UI
 	}
 
 
+	public static class ScaledSliderMimicSaveStates
+	{
+		public static int[] saveStates = {0, -256, -128, 0, 128, 256, -64, 64, -32, 32};
+	}
+
+
 	public abstract class ScaledSliderMimic
 	{
 		public const int scaledSliderMimicLayoutID = 0x7085840b;
 		public const int actualSliderGlideEffectGroupID = 0x7085850b;
 		public const int mimicSliderGlideEffectGroupID = 0x7085860b;
 		public static readonly Type buttonType = typeof(Button);
+		public static readonly int[] keyboardChangeDeltas = {1, 8, 32, 64, 128, 256};
+
+		/* The game can crash when too many trigger hooks at active at the same time,
+		   so be careful not to leak this. */
+		public static uint triggerHandle;
 
 		public Slider actualSlider;
 		public WindowBase mimicSlider;
@@ -2097,8 +2108,52 @@ namespace TinyUIFixForTS3.UI
 		public Button thumbContainer;
 		public WindowBase actualParent;
 		public float thumbFirstGrabbedAt = float.NaN;
+		/* Sims3.UI.Slider#Value is clamped between the MinValue and MaxValue,
+		   so we keep track of any out-of-bounds values we've set ourselves. */
+		public int nonRestrictedValue;
 
 		public abstract ResourceKey LayoutResourceKey {get;}
+
+		public enum TriggerCodes : uint
+		{
+			DecrementSliderSlightly = 0x84857050,
+			DecrementSliderModerately = 0x84857051,
+			DecrementSliderExtremely = 0x84857052,
+			DecrementSliderSlightlyShift = 0x84857053,
+			DecrementSliderModeratelyShift = 0x84857054,
+			DecrementSliderExtremelyShift = 0x84857055,
+
+			IncrementSliderSlightly = 0x84857060,
+			IncrementSliderModerately = 0x84857061,
+			IncrementSliderExtremely = 0x84857062,
+			IncrementSliderSlightlyShift = 0x84857063,
+			IncrementSliderModeratelyShift = 0x84857064,
+			IncrementSliderExtremelyShift = 0x84857065,
+
+			LoadSliderSaveState0 = 0x84857070,
+			LoadSliderSaveState1 = 0x84857071,
+			LoadSliderSaveState2 = 0x84857072,
+			LoadSliderSaveState3 = 0x84857073,
+			LoadSliderSaveState4 = 0x84857074,
+			LoadSliderSaveState5 = 0x84857075,
+			LoadSliderSaveState6 = 0x84857076,
+			LoadSliderSaveState7 = 0x84857077,
+			LoadSliderSaveState8 = 0x84857078,
+			LoadSliderSaveState9 = 0x84857079,
+
+			SaveSliderSaveState0 = 0x84857080,
+			SaveSliderSaveState1 = 0x84857081,
+			SaveSliderSaveState2 = 0x84857082,
+			SaveSliderSaveState3 = 0x84857083,
+			SaveSliderSaveState4 = 0x84857084,
+			SaveSliderSaveState5 = 0x84857085,
+			SaveSliderSaveState6 = 0x84857086,
+			SaveSliderSaveState7 = 0x84857087,
+			SaveSliderSaveState8 = 0x84857088,
+			SaveSliderSaveState9 = 0x84857089,
+
+			ResetSliderSaveStates = 0x84857090,
+		}
 
 		private static ScaledSliderMimic MakeScaledSliderMimic (Slider actualSlider)
 		{
@@ -2146,15 +2201,18 @@ namespace TinyUIFixForTS3.UI
 			mimic.mimicSlider = mimicSlider;
 			mimic.InitialiseWindowReferences();
 			mimic.DetachEvents();
+			mimic.DetachTriggers();
 			mimic.ShowActualSlider();
 			mimic.DisposeOfMimic();
 		}
 
 		private void GlomOntoSlider ()
 		{
+			int activeValue = this.actualSlider.Value;
+			this.nonRestrictedValue = activeValue;
 			this.MimicAppearanceOfActualSlider();
 			var thumbContainerArea = this.MimicAreaOfActualSlider(this.actualSlider.Area);
-			this.thumb.Area = this.AreaForThumb(thumbContainerArea, this.actualSlider.Value);
+			this.thumb.Area = this.AreaForThumb(thumbContainerArea, activeValue);
 			this.HideActualSlider();
 			this.AttachEvents();
 
@@ -2284,8 +2342,21 @@ namespace TinyUIFixForTS3.UI
 			var thumbLength = this.MainAxis(thumbBottomRight) - this.MainAxis(thumbTopLeft);
 
 			var minValue = this.actualSlider.MinValue;
-			float valueRange = this.actualSlider.MaxValue - minValue;
-			float startOffset = ((float) (value - minValue) / valueRange) * (length - thumbLength);
+			var maxValue = this.actualSlider.MaxValue;
+			float valueRange = maxValue - minValue;
+
+			int displayValue = value;
+			int clampDisplayValue;
+
+			if (
+				   displayValue > (clampDisplayValue = maxValue)
+				|| displayValue < (clampDisplayValue = minValue)
+			)
+			{
+				displayValue = clampDisplayValue;
+			}
+
+			float startOffset = ((float) (displayValue - minValue) / valueRange) * (length - thumbLength);
 
 			float start = this.MainAxis(topLeft) + startOffset;
 			this.MainAxis(ref thumbTopLeft) = start;
@@ -2425,10 +2496,40 @@ namespace TinyUIFixForTS3.UI
 			this.DetachEventsFromActualSlider();
 		}
 
+		public void AttachTriggers ()
+		{
+			if (triggerHandle != 0)
+			{
+				UIManager.RemoveTriggerHook(triggerHandle);
+			}
+
+			triggerHandle = this.thumbContainer.AddTriggerHook(
+				"TinyUIFixForTS3SliderEnhancementTriggers",
+				TriggerActivationMode.kPermanent,
+				19
+			);
+		}
+
+		public void DetachTriggers ()
+		{
+			if (triggerHandle != 0)
+			{
+				UIManager.RemoveTriggerHook(triggerHandle);
+			}
+
+			triggerHandle = 0;
+		}
+
 		public void AttachEventsToThumb ()
 		{
 			this.thumb.MouseDown += this.HandleThumbMouseDown;
 			this.thumb.MouseUp += this.HandleThumbMouseUp;
+		}
+
+		public void AttachEnhancedEventsToThumb ()
+		{
+			this.thumb.FocusAcquired += this.HandleMimicControlFocusAcquired;
+			this.thumb.FocusLost += this.HandleMimicControlFocusLost;
 		}
 
 		public void DetachEventsFromThumb ()
@@ -2437,16 +2538,38 @@ namespace TinyUIFixForTS3.UI
 			this.thumb.MouseUp -= this.HandleThumbMouseUp;
 		}
 
+		public void DetachEnhancedEventsFromThumb ()
+		{
+			this.thumb.FocusAcquired -= this.HandleMimicControlFocusAcquired;
+			this.thumb.FocusLost -= this.HandleMimicControlFocusLost;
+		}
+
 		public void AttachEventsToThumbContainer ()
 		{
 			this.thumbContainer.MouseDown += this.HandleThumbContainerMouseDown;
 			this.thumbContainer.MouseUp += this.HandleThumbContainerMouseUp;
 		}
 
+		public void AttachEnhancedEventsToThumbContainer ()
+		{
+			this.thumbContainer.FocusAcquired += this.HandleMimicControlFocusAcquired;
+			this.thumbContainer.FocusLost += this.HandleMimicControlFocusLost;
+			this.thumbContainer.TriggerDown += this.HandleThumbContainerTriggerDown;
+			this.thumbContainer.TriggerUp += this.HandleThumbContainerTriggerUp;
+		}
+
 		public void DetachEventsFromThumbContainer ()
 		{
 			this.thumbContainer.MouseDown -= this.HandleThumbContainerMouseDown;
 			this.thumbContainer.MouseUp -= this.HandleThumbContainerMouseUp;
+		}
+
+		public void DetachEnhancedEventsFromThumbContainer ()
+		{
+			this.thumbContainer.FocusAcquired -= this.HandleMimicControlFocusAcquired;
+			this.thumbContainer.FocusLost -= this.HandleMimicControlFocusLost;
+			this.thumbContainer.TriggerDown -= this.HandleThumbContainerTriggerDown;
+			this.thumbContainer.TriggerUp -= this.HandleThumbContainerTriggerUp;
 		}
 
 		public void AttachEventsToActualSlider ()
@@ -2559,6 +2682,7 @@ namespace TinyUIFixForTS3.UI
 
 		public void HandleSliderValueChange (WindowBase sender, UIValueChangedEventArgs eventArgs)
 		{
+			this.nonRestrictedValue = eventArgs.NewValue;
 			this.thumb.Area = this.AreaForThumb(this.thumbContainer.Area, eventArgs.NewValue);
 		}
 
@@ -2612,12 +2736,13 @@ namespace TinyUIFixForTS3.UI
 				this.actualSlider.MinValue,
 				this.actualSlider.MaxValue
 			);
-			int activeValue = this.actualSlider.Value;
+			int activeValue = this.nonRestrictedValue;
 
 			if (value != activeValue)
 			{
 				this.thumb.Area = this.AreaForThumb(thumbContainerArea, value);
 
+				this.nonRestrictedValue = value;
 				this.actualSlider.Value = value;
 				this.MimicSliderValueChangeEvent(activeValue, value);
 			}
@@ -2625,23 +2750,63 @@ namespace TinyUIFixForTS3.UI
 
 		public void HandleThumbMouseDown (WindowBase sender, UIMouseEventArgs eventArgs)
 		{
-			if ((eventArgs.MouseKey & MouseKeys.kMouseLeft) == MouseKeys.kMouseLeft)
-			{
-				UIManager.SetCaptureTarget(InputContext.kICMouse, this.thumb);
-				this.thumb.MouseMove += this.HandleThumbMouseMove;
-				this.GrabThumb(eventArgs.MousePosition);
-				eventArgs.Handled = true;
-			}
+			UIManager.SetCaptureTarget(InputContext.kICMouse, this.thumb);
+			this.thumb.MouseMove += this.HandleThumbMouseMove;
+			this.GrabThumb(eventArgs.MousePosition);
+			eventArgs.Handled = true;
 		}
 
 		public void HandleThumbMouseUp (WindowBase sender, UIMouseEventArgs eventArgs)
 		{
-			if ((eventArgs.MouseKey & MouseKeys.kMouseLeft) == MouseKeys.kMouseLeft)
+			this.thumb.MouseMove -= this.HandleThumbMouseMove;
+			UIManager.ReleaseCapture(InputContext.kICMouse, this.thumb);
+			this.ReleaseThumb();
+			eventArgs.Handled = true;
+		}
+
+		public void HandleEnhancedThumbMouseUp (WindowBase sender, UIMouseEventArgs eventArgs)
+		{
+			UIManager.ReleaseCapture(InputContext.kICMouse, this.thumb);
+			Simulator.AddObject(new OneShotFunctionTask(this.InputValueDialogTask));
+			eventArgs.Handled = true;
+		}
+
+		public void InputValueDialogTask ()
+		{
+			int activeValue = this.nonRestrictedValue;
+			int minValue = this.actualSlider.MinValue;
+			int maxValue = this.actualSlider.MaxValue;
+
+			var userInput = StringInputDialog.Show(
+				"Change slider value",
+				"[" + minValue + "|" + activeValue + "|" + maxValue + "]",
+				activeValue.ToString()
+			);
+
+			if (int.TryParse(userInput, out int value))
 			{
-				this.thumb.MouseMove -= this.HandleThumbMouseMove;
-				UIManager.ReleaseCapture(InputContext.kICMouse, this.thumb);
-				this.ReleaseThumb();
-				eventArgs.Handled = true;
+				if (value != activeValue)
+				{
+					if (!Responder.Instance.HudModel.IsCasState() || OptionsDialog.sDialog != null)
+					{
+						int clampValue;
+
+						if (
+							   value > (clampValue = maxValue)
+							|| value < (clampValue = minValue)
+						)
+						{
+							value = clampValue;
+						}
+					}
+
+					this.StartChangingSliderValue();
+					this.thumb.Area = this.AreaForThumb(this.thumbContainer.Area, value);
+					this.nonRestrictedValue = value;
+					this.actualSlider.Value = value;
+					this.MimicSliderValueChangeEvent(activeValue, value);
+					this.StopChangingSliderValue();
+				}
 			}
 		}
 
@@ -2658,63 +2823,183 @@ namespace TinyUIFixForTS3.UI
 
 		public void HandleThumbContainerMouseDown (WindowBase sender, UIMouseEventArgs eventArgs)
 		{
-			if ((eventArgs.MouseKey & MouseKeys.kMouseLeft) == MouseKeys.kMouseLeft)
+			UIManager.SetCaptureTarget(InputContext.kICMouse, this.thumbContainer);
+
+			this.StartChangingSliderValue();
+
+			var thumbContainerArea = this.thumbContainer.Area;
+			var thumbContainerStart = this.MainAxis(thumbContainerArea.TopLeft);
+			var thumbContainerLength = this.MainAxis(thumbContainerArea.BottomRight) - thumbContainerStart;
+			var thumbArea = this.thumb.Area;
+			var thumbLength = this.MainAxis(thumbArea.BottomRight) - this.MainAxis(thumbArea.TopLeft);
+			var thumbOffset = this.MainAxis(eventArgs.MousePosition);
+
+			thumbOffset -= thumbLength * 0.5f;
+
+			float start = thumbContainerStart;
+			float end = thumbContainerStart + (thumbContainerLength - thumbLength);
+
+			if (thumbOffset < start)
 			{
-				UIManager.SetCaptureTarget(InputContext.kICMouse, this.thumbContainer);
+				thumbOffset = start;
+			}
+			else if (thumbOffset > end)
+			{
+				thumbOffset = end;
+			}
+
+			thumbOffset -= start;
+
+			int value = ValueForThumb(
+				thumbContainerLength,
+				thumbOffset,
+				thumbLength,
+				this.actualSlider.MinValue,
+				this.actualSlider.MaxValue
+			);
+			int activeValue = this.nonRestrictedValue;
+
+			if (value != activeValue)
+			{
+				this.thumb.Area = this.AreaForThumb(thumbContainerArea, value);
+
+				this.nonRestrictedValue = value;
+				this.actualSlider.Value = value;
+				this.MimicSliderValueChangeEvent(activeValue, value);
+			}
+
+			eventArgs.Handled = true;
+		}
+
+		public void HandleThumbContainerMouseUp (WindowBase sender, UIMouseEventArgs eventArgs)
+		{
+			UIManager.ReleaseCapture(InputContext.kICMouse, this.thumbContainer);
+			this.StopChangingSliderValue();
+			eventArgs.Handled = true;
+		}
+
+		public void HandleEnhancedThumbContainerMouseUp (WindowBase sender, UIMouseEventArgs eventArgs)
+		{
+			UIManager.ReleaseCapture(InputContext.kICMouse, this.thumbContainer);
+			Simulator.AddObject(new OneShotFunctionTask(this.InputValueDialogTask));
+			eventArgs.Handled = true;
+		}
+
+		public void HandleMimicControlFocusAcquired (WindowBase sender, UIFocusChangeEventArgs eventArgs)
+		{
+			if (triggerHandle != 0)
+			{
+				UIManager.RemoveTriggerHook(triggerHandle);
+			}
+
+			this.AttachTriggers();
+		}
+
+		public void HandleMimicControlFocusLost (WindowBase sender, UIFocusChangeEventArgs eventArgs)
+		{
+			if (!Responder.Instance.HudModel.IsCasState() || OptionsDialog.sDialog != null)
+			{
+				this.DetachTriggers();
+			}
+		}
+
+		public void HandleThumbContainerTriggerDown (WindowBase sender, UITriggerEventArgs eventArgs)
+		{
+			uint triggerCode = eventArgs.TriggerCode;
+
+			if (triggerCode < (uint) TriggerCodes.LoadSliderSaveState0)
+			{
+				int changeIndex = (int) (triggerCode & 0b111);
+				int delta = keyboardChangeDeltas[changeIndex];
+
+				if (triggerCode < (uint) TriggerCodes.IncrementSliderSlightly)
+				{
+					delta = -delta;
+				}
+
+				int activeValue = this.nonRestrictedValue;
+				int value = activeValue + delta;
+
+				if (!Responder.Instance.HudModel.IsCasState() || OptionsDialog.sDialog != null)
+				{
+					int clampValue;
+
+					if (
+						   value > (clampValue = this.actualSlider.MaxValue)
+						|| value < (clampValue = this.actualSlider.MinValue)
+					)
+					{
+						value = clampValue;
+					}
+				}
 
 				this.StartChangingSliderValue();
+				this.thumb.Area = this.AreaForThumb(this.thumbContainer.Area, value);
+				this.nonRestrictedValue = value;
+				this.actualSlider.Value = value;
+				this.MimicSliderValueChangeEvent(activeValue, value);
+				this.StopChangingSliderValue();
 
-				var thumbContainerArea = this.thumbContainer.Area;
-				var thumbContainerStart = this.MainAxis(thumbContainerArea.TopLeft);
-				var thumbContainerLength = this.MainAxis(thumbContainerArea.BottomRight) - thumbContainerStart;
-				var thumbArea = this.thumb.Area;
-				var thumbLength = this.MainAxis(thumbArea.BottomRight) - this.MainAxis(thumbArea.TopLeft);
-				var thumbOffset = this.MainAxis(eventArgs.MousePosition);
-
-				thumbOffset -= thumbLength * 0.5f;
-
-				float start = thumbContainerStart;
-				float end = thumbContainerStart + (thumbContainerLength - thumbLength);
-
-				if (thumbOffset < start)
-				{
-					thumbOffset = start;
-				}
-				else if (thumbOffset > end)
-				{
-					thumbOffset = end;
-				}
-
-				thumbOffset -= start;
-
-				int value = ValueForThumb(
-					thumbContainerLength,
-					thumbOffset,
-					thumbLength,
-					this.actualSlider.MinValue,
-					this.actualSlider.MaxValue
-				);
-				int activeValue = this.actualSlider.Value;
-
-				if (value != activeValue)
-				{
-					this.thumb.Area = this.AreaForThumb(thumbContainerArea, value);
-
-					this.actualSlider.Value = value;
-					this.MimicSliderValueChangeEvent(activeValue, value);
-				}
+				/* Deactivate and reactivate the trigger hook so that this event
+				   fires continuously when a trigger button is held down.  */
+				UIManager.DeactivateTriggerHook(triggerHandle);
+				UIManager.ActivateTriggerHook(triggerHandle);
 
 				eventArgs.Handled = true;
 			}
 		}
 
-		public void HandleThumbContainerMouseUp (WindowBase sender, UIMouseEventArgs eventArgs)
+		public void HandleThumbContainerTriggerUp (WindowBase sender, UITriggerEventArgs eventArgs)
 		{
-			if ((eventArgs.MouseKey & MouseKeys.kMouseLeft) == MouseKeys.kMouseLeft)
-			{
-				UIManager.ReleaseCapture(InputContext.kICMouse, this.thumbContainer);
+			uint triggerCode = eventArgs.TriggerCode;
 
-				this.StopChangingSliderValue();
+			if (triggerCode >= (uint) TriggerCodes.LoadSliderSaveState0)
+			{
+				int saveStateIndex = (int) (triggerCode & 0b1111);
+
+				if (triggerCode < (uint) TriggerCodes.SaveSliderSaveState0)
+				{
+					int value = ScaledSliderMimicSaveStates.saveStates[saveStateIndex];
+
+					if (!Responder.Instance.HudModel.IsCasState() || OptionsDialog.sDialog != null)
+					{
+						int clampValue;
+
+						if (
+							   value > (clampValue = this.actualSlider.MaxValue)
+							|| value < (clampValue = this.actualSlider.MinValue)
+						)
+						{
+							value = clampValue;
+						}
+					}
+
+					this.StartChangingSliderValue();
+					this.thumb.Area = this.AreaForThumb(this.thumbContainer.Area, value);
+					int activeValue = this.nonRestrictedValue;
+					this.nonRestrictedValue = value;
+					this.actualSlider.Value = value;
+					this.MimicSliderValueChangeEvent(activeValue, value);
+					this.StopChangingSliderValue();
+				}
+				else if (triggerCode < (uint) TriggerCodes.ResetSliderSaveStates)
+				{
+					ScaledSliderMimicSaveStates.saveStates[saveStateIndex] = this.nonRestrictedValue;
+				}
+				else
+				{
+					var saveStates = ScaledSliderMimicSaveStates.saveStates;
+					saveStates[0] = 0;
+					saveStates[1] = -256;
+					saveStates[2] = -128;
+					saveStates[3] = 0;
+					saveStates[4] = 128;
+					saveStates[5] = 256;
+					saveStates[6] = -64;
+					saveStates[7] = 64;
+					saveStates[8] = -32;
+					saveStates[9] = 32;
+				}
 
 				eventArgs.Handled = true;
 			}

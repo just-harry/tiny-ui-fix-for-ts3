@@ -74,6 +74,7 @@ Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath ScaledVerticalScrollbarMim
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath ScaledHorizontalScrollbarMimic.xml) -Force -Destination $TinyUIFixForTS3DataPath
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath ScaledVerticalSliderMimic.xml) -Force -Destination $TinyUIFixForTS3DataPath
 Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath ScaledHorizontalSliderMimic.xml) -Force -Destination $TinyUIFixForTS3DataPath
+Copy-Item -LiteralPath (Join-Path $TinyUIFixPatchPath SliderEnhancementTriggers.triggers) -Force -Destination $TinyUIFixForTS3DataPath
 try {[Microsoft.VisualBasic.FileIO.FileSystem]::CopyDirectory($TinyUIFixPatchsetsPath, $TinyUIFixForTS3PatchsetsPath, $True)}
 catch {}
 
