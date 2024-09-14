@@ -3698,6 +3698,62 @@ function Apply-PatchesToResources (
 		(New-ScriptBlockInvokerAsIs).CreateDelegate([Func[Object, Object[], Object]])
 	)
 
+	$CursorImages.ExceptWith($State.EnqueuedScalingOfImages.Keys)
+
+	$RemainingCursorImages = [Collections.Generic.Dictionary[String, [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]]]::new()
+
+	foreach ($CursorImage in $CursorImages.GetEnumerator())
+	{
+		$SourcePackage = $Null
+
+		if ($State.UnpatchedResources.SourcePackageByKey.TryGetValue($CursorImage, [Ref] $SourcePackage))
+		{
+			$Keys = $Null
+
+			if (-not $RemainingCursorImages.TryGetValue($SourcePackage, [Ref] $Keys))
+			{
+				$Keys = [Collections.Generic.HashSet[s3pi.Interfaces.TGIBlock]]::new()
+				$RemainingCursorImages[$SourcePackage] = $Keys
+			}
+
+			$Keys.Add($CursorImage)
+		}
+	}
+
+	$RemainingCursorImageResources = [TinyUIFixForTS3Patcher.ResourceManipulator]::ReadResources(
+		$RemainingCursorImages,
+		[Delegate]::CreateDelegate([Func[Int32, String, Bool, s3pi.Interfaces.IPackage]], [s3pi.Package.Package].GetMethod('OpenPackage', [Type[]] @([Int32], [String], [Bool]))),
+		[Delegate]::CreateDelegate([Action[Int32, s3pi.Interfaces.IPackage]], [s3pi.Package.Package].GetMethod('ClosePackage', [Type[]] @([Int32], [s3pi.Interfaces.IPackage]))),
+		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IPackage, Collections.Generic.IEnumerable[s3pi.Interfaces.IResourceIndexEntry]]], [s3pi.Interfaces.IPackage].GetProperty('GetResourceList').GetMethod),
+		(New-ResourceKeyConstructor).CreateDelegate([Func[s3pi.Interfaces.IResourceKey, s3pi.Interfaces.TGIBlock]]),
+		(New-ResourceStreamGetter).CreateDelegate([Func[s3pi.Interfaces.IPackage, s3pi.Interfaces.IResourceIndexEntry, IO.Stream]]),
+		[Action[Exception, String, s3pi.Interfaces.IResourceKey]] {Param ($Exception, $PackagePath, $ResourceKey) Write-Warning "$((& $FormatError $Exception))$([Environment]::Newline)    That error occurred while examining resource $ResourceKey of the package at `"$PackagePath`""}
+	)
+
+	foreach ($Entry in $RemainingCursorImageResources.GetEnumerator())
+	{
+		$State.EnqueuedScalingOfImages[$Entry.Key] = @{
+			Queued = @{
+				ResourceKey = $Entry.Key
+				Scale = $State.Patchsets.Nucleus.Instance.EffectiveCursorScale
+				Algorithm = $State.Patchsets.Nucleus.Instance.EffectiveCursorScalingAlgorithm
+			}
+			ImageData = $(
+				if ($Entry.Value -is [IO.MemoryStream])
+				{
+					$Entry.Value
+				}
+				else
+				{
+					$Stream = [IO.MemoryStream]::new()
+					$Entry.Value.Position = 0
+					$Entry.Value.CopyTo($Stream)
+					$Stream.Position = 0
+					$Stream
+				}
+			)
+		}
+	}
 
 	$PowerShellProcess = [Diagnostics.Process]::GetCurrentProcess()
 

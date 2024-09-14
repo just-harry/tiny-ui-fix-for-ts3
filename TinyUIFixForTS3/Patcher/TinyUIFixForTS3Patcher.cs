@@ -1709,6 +1709,70 @@ namespace TinyUIFixForTS3Patcher
 			};
 		}
 
+		public static Dictionary<ConstructableResourceKey, Stream> ReadResources <IResourceIndexEntry, IResourceKey, ConstructableResourceKey, IPackage> (
+			Dictionary<string, HashSet<ConstructableResourceKey>> keysToReadByPackage,
+			Func<int, string, bool, IPackage> openPackage,
+			Action<int, IPackage> closePackage,
+			Func<IPackage, IEnumerable<IResourceIndexEntry>> getResourceListOfPackage,
+			Func<IResourceKey, ConstructableResourceKey> constructResourceKey,
+			Func<IPackage, IResourceIndexEntry, Stream> getStreamForResource,
+			Action<Exception, string, IResourceKey> logWarning
+		)
+		where IResourceIndexEntry : IResourceKey
+		where ConstructableResourceKey : IResourceKey
+		where IResourceKey : class
+		{
+			var streamsByKey = new Dictionary<ConstructableResourceKey, Stream>();
+
+			foreach (var keysByPackage in keysToReadByPackage)
+			{
+				if (keysByPackage.Value.Count == 0)
+				{
+					continue;
+				}
+
+				var remainingKeys = new HashSet<ConstructableResourceKey>(keysByPackage.Value, keysByPackage.Value.Comparer);
+				string filePath = keysByPackage.Key;
+
+				IResourceKey lastKey = default(IResourceKey);
+
+				try
+				{
+					IPackage package = openPackage(1, filePath, false);
+
+					try
+					{
+						foreach (var entry in getResourceListOfPackage(package))
+						{
+							lastKey = entry;
+
+							var key = constructResourceKey(entry);
+
+							if (remainingKeys.Remove(key))
+							{
+								streamsByKey[key] = getStreamForResource(package, entry);
+
+								if (remainingKeys.Count == 0)
+								{
+									break;
+								}
+							}
+						}
+					}
+					finally
+					{
+						closePackage(1, package);
+					}
+				}
+				catch (Exception error)
+				{
+					logWarning(error, filePath, lastKey);
+				}
+			}
+
+			return streamsByKey;
+		}
+
 		public static void PatchResources <IResourceIndexEntry, IResourceKey, ConstructableResourceKey, IPackage> (
 			Dictionary<string, Dictionary<ConstructableResourceKey, object>> patchableResources,
 			Func<int, string, bool, IPackage> openPackage,
