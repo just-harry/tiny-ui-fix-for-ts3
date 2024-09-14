@@ -1301,6 +1301,7 @@ class TinyUIFixPSForTS3
 	static [UInt32] $S3SATypeID = 0x073faa07
 	static [UInt32] $IMAGTGATypeID = 0x2f7d0002
 	static [UInt32] $IMAGPNGTypeID = 0x2f7d0004
+	static [UInt32] $TRIGTypeID = 0xf0ff5598 -band [UInt32]::MaxValue
 
 	<# This information courtesy of https://modthesims.info/wiki.php?title=Sims_3:Locales #>
 	static [Collections.Generic.Dictionary[Byte, PSCustomObject]] $Sims3LocalesByCode = $(
