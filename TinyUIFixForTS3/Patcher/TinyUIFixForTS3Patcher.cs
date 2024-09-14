@@ -1651,8 +1651,12 @@ namespace TinyUIFixForTS3Patcher
 			Func<IResourceKey, uint> getResourceTypeOfResourceKey,
 			Func<IResourceKey, uint> getResourceGroupOfResourceKey
 		)
+		where IResourceKey : class
 		{
 			var binary = new BinaryWriter(stream, new UnicodeEncoding(false, false, false));
+
+			bool writtenFirstSTBLKey = false;
+			IResourceKey lastSTBLKey = null;
 
 			foreach (var entry in getResourceListOfPackage(package))
 			{
@@ -1663,8 +1667,32 @@ namespace TinyUIFixForTS3Patcher
 					continue;
 				}
 
+				if (type == 0x220557DA)
+				{
+					if (!writtenFirstSTBLKey)
+					{
+						writtenFirstSTBLKey = true;
+					}
+					else
+					{
+						lastSTBLKey = entry;
+						continue;
+					}
+				}
+
 				ulong instance = getInstanceOfResourceKey(entry);
 				uint group = getResourceGroupOfResourceKey(entry);
+
+				binary.Write(instance);
+				binary.Write(type);
+				binary.Write(group);
+			}
+
+			if (lastSTBLKey != null)
+			{
+				ulong instance = getInstanceOfResourceKey(lastSTBLKey);
+				uint type = getResourceTypeOfResourceKey(lastSTBLKey);
+				uint group = getResourceGroupOfResourceKey(lastSTBLKey);
 
 				binary.Write(instance);
 				binary.Write(type);
