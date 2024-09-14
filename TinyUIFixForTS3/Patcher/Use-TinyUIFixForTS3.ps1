@@ -2263,6 +2263,38 @@ function New-ResourceKeyConstructor ([String] $MethodName = 'CreateResourceKey')
 }
 
 
+function New-ResourceStreamGetter ([String] $MethodName = 'GetStreamForResource')
+{
+	$Method = [Reflection.Emit.DynamicMethod]::new($MethodName, [IO.Stream], @([s3pi.Interfaces.IPackage], [s3pi.Interfaces.IResourceIndexEntry]))
+
+	$IL = $Method.GetILGenerator()
+
+	$IL.Emit([Reflection.Emit.OpCodes]::Ldarg_0)
+	$IL.Emit([Reflection.Emit.OpCodes]::Castclass, [s3pi.Interfaces.APackage])
+	$IL.Emit([Reflection.Emit.OpCodes]::Ldarg_1)
+	$IL.Emit([Reflection.Emit.OpCodes]::Callvirt, [s3pi.Interfaces.APackage].GetMethod('GetResource'))
+	$IL.Emit([Reflection.Emit.OpCodes]::Ret)
+
+	$Method
+}
+
+
+function New-ScriptBlockInvokerAsIs ([String] $MethodName = 'InvokeScriptBlockAsIs')
+{
+	$Method = [Reflection.Emit.DynamicMethod]::new($MethodName, [Object], @([Object], [Object[]]))
+
+	$IL = $Method.GetILGenerator()
+
+	$IL.Emit([Reflection.Emit.OpCodes]::Ldarg_0)
+	$IL.Emit([Reflection.Emit.OpCodes]::Castclass, [ScriptBlock])
+	$IL.Emit([Reflection.Emit.OpCodes]::Ldarg_1)
+	$IL.Emit([Reflection.Emit.OpCodes]::Callvirt, [ScriptBlock].GetMethod('InvokeReturnAsIs', [Type[]] @([Object[]])))
+	$IL.Emit([Reflection.Emit.OpCodes]::Ret)
+
+	$Method
+}
+
+
 function Find-ResourcesAcrossPackages (
 	[Collections.Generic.Dictionary[UInt64, Collections.Generic.IEnumerable[Object]]] $PrioritisedFiles,
 	[IO.DirectoryInfo] $BaseDirectory,
@@ -3440,12 +3472,15 @@ function Apply-PatchesToResources (
 
 					$True
 				}
+
+				$True
 			}
 			catch
 			{
 				Write-Warning "An error occurred while manipulating the layout with a resource-key of $IndexEntry, from the package at $PackageSource.$([Environment]::NewLine)The error was:$([Environment]::NewLine)$(& $FormatError $_)" -WarningAction Continue
 
 				$Null
+				$False
 			}
 
 			1
@@ -3462,11 +3497,13 @@ function Apply-PatchesToResources (
 			$CSS = $Null
 			$State.IntoPackage.AddResource($IndexEntry, $StyleSheet.Stream, $False)
 
+			$True
 			2
 		}
 		else
 		{
 			$Null
+			$False
 			0
 		}
 	}
@@ -3476,56 +3513,54 @@ function Apply-PatchesToResources (
 		$OutputUnpackedAssemblyDirectory = New-Item -ItemType Directory -Force -Path $OutputUnpackedAssemblyDirectoryPath
 	}
 
-	$Resources = [Collections.Generic.List[ValueTuple[Object, s3pi.Interfaces.IResourceIndexEntry]]]::new()
+	$PatchableResources = [Collections.Generic.Dictionary[String, Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]]::new()
 
 	foreach ($Entry in $UnpatchedResourcesByPatchset.Nucleus.ByPackage.GetEnumerator())
 	{
-		[TinyUIFixPSForTS3]::UseDisposable(
-			{[s3pi.Package.Package]::OpenPackage(1, $Entry.Key)},
+		$CategorisedKeys = [Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]::new($Entry.Value.All)
+
+		if ($Null -ne $EnqueuedScalingOfImagesByPackage)
+		{
+			foreach ($Image in $EnqueuedScalingOfImagesByPackage[$Entry.Key])
 			{
-				Param ($Package)
+				$CategorisedKeys[$Image.Key] = 'ImageScaling'
+			}
+		}
 
-				[TinyUIFixPSForTS3]::WriteLineQuickly("Scaling the resources of the package at `"$($Entry.Key)`".")
-
-				$Resources.Clear()
-
-				foreach ($IndexEntry in $Package.GetResourceList.GetEnumerator())
-				{
-					foreach ($CategorisedKey in $Entry.Value.All.GetEnumerator())
-					{
-						if (
-							     $CategorisedKey.Key.Instance -eq $IndexEntry.Instance `
-							-and $CategorisedKey.Key.ResourceType -eq $IndexEntry.ResourceType `
-							-and $CategorisedKey.Key.ResourceGroup -eq $IndexEntry.ResourceGroup
-						)
-						{
-							$Resources.Add([ValueTuple[Object, s3pi.Interfaces.IResourceIndexEntry]]::new($CategorisedKey.Value, $IndexEntry))
-
-							$Entry.Value.All.Remove($CategorisedKey.Key)
-
-							break
-						}
-					}
-				}
-
-				foreach ($Resource in $Resources.GetEnumerator())
-				{
-					$IndexEntry, $CountIndex = & $ApplyPatch $Resource.Item1 $Resource.Item2 -FromPackage $Package $Entry.Key
-
-					if ($Null -ne $IndexEntry)
-					{
-						$IndexEntry.Compressed = if ($Uncompressed) {0} else {0xffff}
-						$IndexEntry
-
-						++$ScaledCounts[$CountIndex]
-					}
-				}
-			},
-			{Param ($Package) [s3pi.Package.Package]::ClosePackage(1, $Package)}
-		)
+		$PatchableResources[$Entry.Key] = $CategorisedKeys
 	}
 
 	$ScaledCounts = [UInt32[]] @(0, 0, 0, 0, 0)
+	$Resources = [Collections.Generic.List[ValueTuple[Object, s3pi.Interfaces.IResourceIndexEntry]]]::new()
+
+	[TinyUIFixForTS3Patcher.ResourceManipulator]::PatchResources(
+		$PatchableResources,
+		[Delegate]::CreateDelegate([Func[Int32, String, Bool, s3pi.Interfaces.IPackage]], [s3pi.Package.Package].GetMethod('OpenPackage', [Type[]] @([Int32], [String], [Bool]))),
+		[Delegate]::CreateDelegate([Action[Int32, s3pi.Interfaces.IPackage]], [s3pi.Package.Package].GetMethod('ClosePackage', [Type[]] @([Int32], [s3pi.Interfaces.IPackage]))),
+		[Delegate]::CreateDelegate([Func[s3pi.Interfaces.IPackage, Collections.Generic.IEnumerable[s3pi.Interfaces.IResourceIndexEntry]]], [s3pi.Interfaces.IPackage].GetProperty('GetResourceList').GetMethod),
+		(New-ResourceKeyConstructor).CreateDelegate([Func[s3pi.Interfaces.IResourceKey, s3pi.Interfaces.TGIBlock]]),
+		[Action[Collections.Generic.KeyValuePair[String, Collections.Generic.Dictionary[s3pi.Interfaces.TGIBlock, Object]]]] {Param ($Entry) [TinyUIFixPSForTS3]::WriteLineQuickly("Scaling the resources of the package at `"$($Entry.Key)`".")},
+		[Object] {
+			Param ($Package, $Resources)
+
+			foreach ($Resource in $Resources.GetEnumerator())
+			{
+				$IndexEntry, $WasScaled, $CountIndex = & $ApplyPatch $Resource.Item1 $Resource.Item2 -FromPackage $Package $Entry.Key
+
+				if ($Null -ne $IndexEntry)
+				{
+					$IndexEntry.Compressed = if ($Uncompressed) {0} else {0xffff}
+				}
+
+				if ($WasScaled)
+				{
+					++$ScaledCounts[$CountIndex]
+				}
+			}
+		},
+		(New-ScriptBlockInvokerAsIs).CreateDelegate([Func[Object, Object[], Object]])
+	)
+
 
 	$PowerShellProcess = [Diagnostics.Process]::GetCurrentProcess()
 

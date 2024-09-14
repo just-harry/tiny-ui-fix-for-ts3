@@ -1652,6 +1652,63 @@ namespace TinyUIFixForTS3Patcher
 			};
 		}
 
+		public static void PatchResources <IResourceIndexEntry, IResourceKey, ConstructableResourceKey, IPackage> (
+			Dictionary<string, Dictionary<ConstructableResourceKey, object>> patchableResources,
+			Func<int, string, bool, IPackage> openPackage,
+			Action<int, IPackage> closePackage,
+			Func<IPackage, IEnumerable<IResourceIndexEntry>> getResourceListOfPackage,
+			Func<IResourceKey, ConstructableResourceKey> constructResourceKey,
+			Action<KeyValuePair<string, Dictionary<ConstructableResourceKey, object>>> afterOpeningPackage,
+			object patchResources,
+			Func<object, object[], object> invokePatchResources
+		)
+		where IResourceIndexEntry : IResourceKey
+		where ConstructableResourceKey : IResourceKey
+		where IResourceKey : class
+		{
+			var resources = new List<ValueTuple<object, IResourceIndexEntry>>();
+
+			foreach (var entry in patchableResources)
+			{
+				if (entry.Value.Count == 0)
+				{
+					continue;
+				}
+
+				IPackage package = openPackage(1, entry.Key, false);
+
+				afterOpeningPackage(entry);
+
+				resources.Clear();
+
+				try
+				{
+					foreach (var indexEntry in getResourceListOfPackage(package))
+					{
+						var key = constructResourceKey(indexEntry);
+						object category;
+
+						if (entry.Value.TryGetValue(key, out category))
+						{
+							entry.Value.Remove(key);
+							resources.Add(new ValueTuple<object, IResourceIndexEntry>(category, indexEntry));
+
+							if (entry.Value.Count == 0)
+							{
+								break;
+							}
+						}
+					}
+
+					invokePatchResources(patchResources, new object[2]{package, resources});
+				}
+				finally
+				{
+					closePackage(1, package);
+				}
+			}
+		}
+
 		public static void AppendModFingerprintingResourceKeysTo <IResourceKey, IPackage> (
 			Stream stream,
 			IPackage package,
