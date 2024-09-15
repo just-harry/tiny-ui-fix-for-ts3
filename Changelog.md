@@ -2,6 +2,14 @@
 
 ## Changelog
 
+### Version 1.5.1
+
+#### User-facing
+
+- An oversight which resulted in certain cursor scale values causing the script to fail to generate a package was fixed.
+- Recommended patchsets are now enabled by default, in the configurator, during the first run.
+- To ward confusion, the "Vanilla Core DLL Compatibility Patches" patchset now has a recommendation message in the configurator.
+
 ### Version 1.5.0
 
 #### User-facing
