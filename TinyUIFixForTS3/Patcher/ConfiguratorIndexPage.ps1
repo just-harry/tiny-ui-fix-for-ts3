@@ -554,7 +554,16 @@ $MinimumPatchsetLoadOrderPosition = 2
 
 				for (const patchset of availablePatchsetsList.children)
 				{
-					patchset.querySelector('[data-patchset-is-enabled]').addEventListener('change', handleChangeOfPatchsetActiveState);
+					const checkbox = patchset.querySelector('[data-patchset-is-enabled]');
+
+					checkbox.addEventListener('change', handleChangeOfPatchsetActiveState);
+
+					if (!checkbox.checked && 'indeterminate' in checkbox.dataset)
+					{
+						checkbox.indeterminate = true;
+						checkbox.checked = true;
+						addPatchsetToLoadOrder(availablePatchsetsByID.get(patchset.dataset.id));
+					}
 				}
 
 				const importLoadOrderText = text =>
@@ -760,7 +769,7 @@ $MinimumPatchsetLoadOrderPosition = 2
 										<span>
 											<label class="checkbox">
 												<span>
-													<input type="checkbox" $(if ($Patchset.Active) {'checked'}) $(if ($Patchset.FixedActiveState) {'disabled'}) autocomplete="off" data-patchset-is-enabled>
+													<input type="checkbox" $(if ($Patchset.Active) {'checked'} elseif ($Null -ne $Patchset.RecommendationMessage -and $State.LoadOrderNotActivelySetByUser -and -not $DisabledRecommendedPatchsets.Contains($Patchset.ID)) {'data-indeterminate'}) $(if ($Patchset.FixedActiveState) {'disabled'}) autocomplete="off" data-patchset-is-enabled>
 													<span>Enabled?</span>
 												</span>
 											</label>

@@ -6511,6 +6511,7 @@ try
 
 	$LastPatchsetLoadOrderFilePath = Join-Path $PSScriptRoot LastPatchsetLoadOrder.txt
 	$LastPatchsetConfigurationFilePath = Join-Path $PSScriptRoot LastPatchsetConfiguration.json
+	$LastDisabledRecommendedPatchsetsFilePath = Join-Path $PSScriptRoot LastDisabledRecommendedPatchsets.txt
 
 
 	$LoadOrderNotExplicitlySetByUser = $Null -eq $Script:PSBoundParameters.PatchsetLoadOrder
@@ -6564,6 +6565,26 @@ try
 
 	if ($UsingConfigurator)
 	{
+		$DisabledRecommendedPatchsets = $Null
+
+		if ($UsingConfigurator -and (Test-Path -LiteralPath $LastDisabledRecommendedPatchsetsFilePath))
+		{
+			[TinyUIFixPSForTS3]::WriteLineQuickly("Reading the disabled recommended patchsets from `"$LastDisabledRecommendedPatchsetsFilePath`".")
+
+			$LastDisabledRecommendedPatchsets = Get-Content -Raw -LiteralPath $LastDisabledRecommendedPatchsetsFilePath -ErrorAction Continue
+
+			if ($Null -ne $LastDisabledRecommendedPatchsets)
+			{
+				$DisabledRecommendedPatchsets = [Collections.Generic.HashSet[String]] ($LastDisabledRecommendedPatchsets -split '\s+').Where{$_}
+			}
+		}
+
+		if ($Null -eq $DisabledRecommendedPatchsets)
+		{
+			$DisabledRecommendedPatchsets = [Collections.Generic.HashSet[String]]::new()
+		}
+
+
 		$DataPath = Join-Path $PSScriptRoot Data
 		$ReadConfiguratorIndexPageTask = [IO.StreamReader]::new(
 			[IO.FileStream]::new((Join-Path $DataPath ConfiguratorIndexPage.ps1), [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete),
@@ -6860,6 +6881,8 @@ try
 				DisableRuntimeModMismatchCheck = $PatchingState.Configuration.Nucleus.DisableRuntimeModMismatchCheck
 				LoadOrder = $LoadOrder
 				AvailablePatchsets = $AvailablePatchsetsForConfigurator
+				LoadOrderNotActivelySetByUser = $Null -eq $Script:PSBoundParameters.PatchsetLoadOrder
+				DisabledRecommendedPatchsets = $DisabledRecommendedPatchsets
 			} `
 			-Actions @{
 				Uninstall = $UninstallTinyUIFix
@@ -6879,6 +6902,14 @@ try
 
 	New-Item $LastPatchsetLoadOrderFilePath -Force -Value "$($LoadOrder.ByIndex -join ([Environment]::NewLine))$([Environment]::NewLine)" > $Null
 	New-Item $LastPatchsetConfigurationFilePath -Force -Value "$(ConvertTo-Json $PatchsetConfiguration -Depth ([TinyUIFixPSForTS3]::MaximumPatchsetConfigurationFileDepth))$([Environment]::NewLine)" > $Null
+
+	if ($UsingConfigurator)
+	{
+		$RecommendedPatchsets = $AvailablePatchsetsForConfigurator.Where{$Null -ne $_.RecommendationMessage}.ForEach{$_.ID}
+		$DisabledRecommendedPatchsets = $RecommendedPatchsets.Where{-not $LoadOrder.ByID.ContainsKey($_)}
+
+		New-Item $LastDisabledRecommendedPatchsetsFilePath -Force -Value "$($DisabledRecommendedPatchsets -join ([Environment]::NewLine))$([Environment]::NewLine)" > $Null
+	}
 
 
 	if ($SkipGenerationOfPackage)
