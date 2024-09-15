@@ -3792,7 +3792,7 @@ function Apply-PatchesToResources (
 				$FileExtension = if ($ImageScaling.Key.ResourceType -ceq [TinyUIFixPSForTS3]::IMAGTGATypeID) {'.tga'} else {'.png'}
 
 				$Permutation = [ValueTuple[String, Double, String]]::new($ImageScaling.Value.Queued.Algorithm, [Double] $ImageScaling.Value.Queued.Scale, $FileExtension)
-				$Destination = Join-Path $ImageScratchPath "$($Permutation.Item1)#$($Permutation.Item2)#$($Permutation.Item3)"
+				$Destination = Join-Path $ImageScratchPath "$($Permutation.Item1)#$([BitConverter]::DoubleToInt64Bits($Permutation.Item2).ToString('X016'))#$($Permutation.Item3)"
 
 				$ScaledImagesKeysByIndex = $ScaledImagesKeysByIndexByPermutations[$Permutation]
 
@@ -3863,7 +3863,7 @@ function Apply-PatchesToResources (
 			{
 				foreach ($Permutation in $ScaledImagesKeysByIndexByPermutations.Keys)
 				{
-					$Destination = Join-Path $ImageScratchPath "$($Permutation.Item1)#$($Permutation.Item2)#$($Permutation.Item3)"
+					$Destination = Join-Path $ImageScratchPath "$($Permutation.Item1)#$([BitConverter]::DoubleToInt64Bits($Permutation.Item2).ToString('X016'))#$($Permutation.Item3)"
 
 					$FirstPassAlgorithm = $Permutation.Item1 -creplace '!Sharp$'
 
@@ -3934,7 +3934,7 @@ function Apply-PatchesToResources (
 
 					$Index = [UInt32] $FileInfo.Name.Substring(0, 10)
 					$PermutationMatch = $PermutationRegEx.Match((Split-Path -Leaf $FileInfo.DirectoryName))
-					$Permutation = [ValueTuple[String, Double, String]]::new($PermutationMatch.Groups[1].Value, [Double] $PermutationMatch.Groups[2].Value, $PermutationMatch.Groups[3].Value)
+					$Permutation = [ValueTuple[String, Double, String]]::new($PermutationMatch.Groups[1].Value, [BitConverter]::Int64BitsToDouble([Convert]::ToInt64($PermutationMatch.Groups[2].Value, 16)), $PermutationMatch.Groups[3].Value)
 					$ResourceKey = $ScaledImagesKeysByIndexByPermutations[$Permutation][$Index]
 
 					$IndexEntry = $State.IntoPackage.AddResource($ResourceKey, [IO.MemoryStream]::new($ReadFileContents[$TaskIndex], 0, $ReadFileTask.Result), $False)
