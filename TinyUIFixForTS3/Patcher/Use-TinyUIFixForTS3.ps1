@@ -5491,6 +5491,14 @@ function Test-PatchsetIsRecommended ($Patchset, $AllActiveModPackages)
 			RecommendationMessage = "$(if ($MatchedModPackages.Count -gt 0) {$Patchset.Instance.RecommendUsageInPresenceOfModPackageFilePathsMessage})"
 		}
 	}
+	elseif ($Patchset.Definition.ID -ceq 'VanillaCoreCompatibilityPatch')
+	{
+		[PSCustomObject] @{
+			IsRecommended = $True
+			MatchedModPackages = @()
+			RecommendationMessage = "Because vanilla core DLLs are active."
+		}
+	}
 	else
 	{
 		[PSCustomObject] @{IsRecommended = $False}
