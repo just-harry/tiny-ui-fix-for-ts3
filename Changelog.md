@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### Version 1.5.2
+
+#### User-facing
+
+- `S3SA` resources patched by the Tiny UI Fix now have their `GameVersion` set to `1.0.0.18`. \
+This should prevent the "unofficial game modification that does not match your current version of The Sims 3" dialog from appearing at start-up in the EA App version of the game.
+
 ### Version 1.5.1
 
 #### User-facing
