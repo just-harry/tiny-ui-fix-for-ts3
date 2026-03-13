@@ -4167,6 +4167,8 @@ function Apply-PatchesToResources (
 		}
 
 		$PatchedResource = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::S3SATypeID)
+		$PatchedResource.Version = 2
+		$PatchedResource.GameVersion = '1.0.0.18'
 		$PatchedAssembly.Write()
 		$AssemblyStream.Position = 0
 

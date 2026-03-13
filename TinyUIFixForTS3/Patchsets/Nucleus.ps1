@@ -164,10 +164,14 @@ $PatchsetDefinitionSchemaVersion = 1
 
 			$TinyUIFixForTS3DLLStream.Position = 0
 			$TinyUIFixForTS3DLL = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::S3SATypeID)
+			$TinyUIFixForTS3DLL.Version = 2
+			$TinyUIFixForTS3DLL.GameVersion = '1.0.0.18'
 			$TinyUIFixForTS3DLL.Assembly = [IO.BinaryReader]::new($TinyUIFixForTS3DLLStream)
 
 			$TinyUIFixForTS3CoreBridgeStream.Position = 0
 			$TinyUIFixForTS3CoreBridge = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::S3SATypeID)
+			$TinyUIFixForTS3CoreBridge.Version = 2
+			$TinyUIFixForTS3CoreBridge.GameVersion = '1.0.0.18'
 			$TinyUIFixForTS3CoreBridge.Assembly = [IO.BinaryReader]::new($TinyUIFixForTS3CoreBridgeStream)
 
 			$TinyUIFixForTS3XML = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::_XMLTypeID)
