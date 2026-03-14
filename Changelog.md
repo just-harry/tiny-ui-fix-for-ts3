@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### Version 1.5.3
+
+#### User-facing
+
+- `S3SA` resources patched by the Tiny UI Fix now have their `GameVersion` set to the same as is set for the game's `SimIFace.dll` resource. \
+This should prevent the "unofficial game modification that does not match your current version of The Sims 3" dialog from appearing at start-up for all versions of the game.
+
 ### Version 1.5.2
 
 #### User-facing
