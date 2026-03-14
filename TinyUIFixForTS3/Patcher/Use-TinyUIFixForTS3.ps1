@@ -3452,10 +3452,25 @@ function Apply-PatchesToResources (
 		$Resource
 	}
 
+
+	$GameScriptsPackagePath = Join-Path $ResolvedResourcesPriorities.GameBinDirectory.FullName scripts.package
+	$SimIFaceResourceKey = $TinyUIFixPSForTS3ResourceKeys.SimIFaceDLL
+	$FoundGameSimIFace = [ValueTuple[Bool]]::new($False)
+
+
+	$State.S3SAMetadata = [PSCustomObject] @{
+		Version = 1
+		GameVersion = ''
+		Unknown2 = [UInt32] 0x2BC4F79F
+	}
+
+
 	[TinyUIFixPSForTS3]::WriteLineQuickly('Extracting assemblies.')
 
 	foreach ($Entry in $ResourcesByPackage.GetEnumerator())
 	{
+		$IsGameScriptsPackage = $Entry.Key.Equals($GameScriptsPackagePath, [StringComparison]::OrdinalIgnoreCase)
+
 		[TinyUIFixPSForTS3]::UseDisposable(
 			{[s3pi.Package.Package]::OpenPackage(1, $Entry.Key)},
 			{
@@ -3466,6 +3481,24 @@ function Apply-PatchesToResources (
 					if ($IndexEntry.ResourceType -ceq [TinyUIFixPSForTS3]::S3SATypeID)
 					{
 						$Resource = & $AddAssemblyStream $Package $IndexEntry
+
+						if (
+							     $IsGameScriptsPackage `
+							-and $SimIFaceResourceKey.Instance -eq $IndexEntry.Instance `
+							-and $SimIFaceResourceKey.ResourceGroup -eq $IndexEntry.ResourceGroup
+						)
+						{
+							if ($Null -eq $Resource)
+							{
+								$Resource = [s3pi.WrapperDealer.WrapperDealer]::GetResource(1, $Package, $IndexEntry)
+							}
+
+							$State.S3SAMetadata.Version = $Resource.Version
+							$State.S3SAMetadata.GameVersion = $Resource.GameVersion
+							$State.S3SAMetadata.Unknown2 = $Resource.Unknown2
+
+							$FoundGameSimIFace.Item1 = $True
+						}
 					}
 				}
 			},
@@ -3474,6 +3507,15 @@ function Apply-PatchesToResources (
 	}
 
 	[TinyUIFixPSForTS3]::WriteLineQuickly("Extracted $($AssemblyStreams.Count) assembl$(if ($AssemblyStreams.Count -ne 1) {'ies'} else {'y'}).")
+
+
+	if (-not $FoundGameSimIFace.Item1)
+	{
+		Write-Warning "`"SimIFace.dll`" could not be found in `"$GameScriptsPackagePath`". The `"unofficial game modifications`" dialog may appear during game start-up." -WarningAction Continue
+	}
+
+
+	[TinyUIFixPSForTS3]::WriteLineQuickly("Using the following metadata for S3SA resources: (Version: $($State.S3SAMetadata.Version), GameVersion: $($State.S3SAMetadata.GameVersion), Unknown2: $($State.S3SAMetadata.Unknown2.ToString('X08')))")
 
 
 	$UTF8 = [Text.UTF8Encoding]::new($False, $False)
@@ -4172,8 +4214,9 @@ function Apply-PatchesToResources (
 		}
 
 		$PatchedResource = [s3pi.WrapperDealer.WrapperDealer]::CreateNewResource(1, '0x{0:X08}' -f [TinyUIFixPSForTS3]::S3SATypeID)
-		$PatchedResource.Version = 2
-		$PatchedResource.GameVersion = '1.0.0.18'
+		$PatchedResource.Version = $State.S3SAMetadata.Version
+		$PatchedResource.GameVersion = $State.S3SAMetadata.GameVersion
+		$PatchedResource.Unknown2 = $State.S3SAMetadata.Unknown2
 		$PatchedAssembly.Write()
 		$AssemblyStream.Position = 0
 
