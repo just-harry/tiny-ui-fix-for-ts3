@@ -3443,10 +3443,13 @@ function Apply-PatchesToResources (
 
 		$Stream = [IO.MemoryStream]::new()
 
-		[s3pi.WrapperDealer.WrapperDealer]::GetResource(1, $Package, $IndexEntry).Assembly.BaseStream.CopyTo($Stream)
+		$Resource = [s3pi.WrapperDealer.WrapperDealer]::GetResource(1, $Package, $IndexEntry)
+		$Resource.Assembly.BaseStream.CopyTo($Stream)
 		$Stream.Position = 0
 
 		$AssemblyStreams[$ResourceKey] = $Stream
+
+		$Resource
 	}
 
 	[TinyUIFixPSForTS3]::WriteLineQuickly('Extracting assemblies.')
@@ -3462,7 +3465,7 @@ function Apply-PatchesToResources (
 				{
 					if ($IndexEntry.ResourceType -ceq [TinyUIFixPSForTS3]::S3SATypeID)
 					{
-						& $AddAssemblyStream $Package $IndexEntry
+						$Resource = & $AddAssemblyStream $Package $IndexEntry
 					}
 				}
 			},
@@ -4043,7 +4046,7 @@ function Apply-PatchesToResources (
 
 			if ($Replacement.ResourceKey.ResourceType -eq [TinyUIFixPSForTS3]::S3SATypeID)
 			{
-				& $AddAssemblyStream $State.IntoPackage $IndexEntry
+				& $AddAssemblyStream $State.IntoPackage $IndexEntry > $Null
 				$AssembliesAlreadyInGeneratedPackage[$Key] = $IndexEntry
 			}
 		}
