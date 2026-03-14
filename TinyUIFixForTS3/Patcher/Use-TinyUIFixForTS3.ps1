@@ -3151,6 +3151,7 @@ function New-TinyUIFixForTS3IntegrationType ([String] $Namespace, [Mono.Cecil.Mo
 function Apply-PatchesToResources (
 	[PSCustomObject] $UnpatchedResources,
 	$UnpatchedResourcesByPackage,
+	$ResolvedResourcesPriorities,
 	$State,
 	$OutputUnpackedAssemblyDirectoryPath,
 	[Switch] $Uncompressed
@@ -3158,6 +3159,7 @@ function Apply-PatchesToResources (
 {
 	$State.UnpatchedResources = $UnpatchedResources
 	$State.UnpatchedResourcesByPackage = $UnpatchedResourcesByPackage
+	$State.ResolvedResourcesPriorities = $ResolvedResourcesPriorities
 
 	$Patchsets = [Object[]] $State.Patchsets.Values
 	$PatchsetsRetro = [Object[]]::new($Patchsets.Length)
@@ -5552,21 +5554,21 @@ function Resolve-ResourcePrioritiesForSims3InstallationForUIScaling ($Installati
 }
 
 
-function New-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $UnpatchedResourcesByPackage, $State, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
+function New-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $UnpatchedResourcesByPackage, $ResolvedResourcesPriorities, $State, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
 {
 	$Package = [s3pi.Package.Package]::NewPackage(1)
 
 	$State.IntoPackage = $Package
 
-	Apply-PatchesToResources $UnpatchedResources $UnpatchedResourcesByPackage $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed > $Null
+	Apply-PatchesToResources $UnpatchedResources $UnpatchedResourcesByPackage $ResolvedResourcesPriorities $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed > $Null
 	$Package
 }
 
 
-function Write-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $UnpatchedResourcesByPackage, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
+function Write-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources, $UnpatchedResourcesByPackage, $ResolvedResourcesPriorities, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
 {
 	[TinyUIFixPSForTS3]::UseDisposable(
-		{New-PackageWithPatchedResources $UnpatchedResources $UnpatchedResourcesByPackage $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed},
+		{New-PackageWithPatchedResources $UnpatchedResources $UnpatchedResourcesByPackage $ResolvedResourcesPriorities $State $OutputUnpackedAssemblyDirectoryPath -Uncompressed:$Uncompressed},
 		{
 			Param ($Package)
 
@@ -5581,11 +5583,13 @@ function Write-PackageWithPatchedResources ([PSCustomObject] $UnpatchedResources
 
 function Write-PackageForSims3Installation ($InstallationState, $State, [String] $FilePath, $OutputUnpackedAssemblyDirectoryPath, [Switch] $Uncompressed)
 {
-	$ResourcesToPatch = Find-ResourcesToPatch (Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $InstallationState) $State
+	$ResolvedResourcesPriorities = Resolve-ResourcePrioritiesForSims3InstallationForUIScaling $InstallationState
+	$ResourcesToPatch = Find-ResourcesToPatch $ResolvedResourcesPriorities $State
 
 	Write-PackageWithPatchedResources `
 		-UnpatchedResources $ResourcesToPatch `
 		-UnpatchedResourcesByPackage (Group-ResourcesToPatchByPackage $ResourcesToPatch) `
+		-ResolvedResourcesPriorities $ResolvedResourcesPriorities `
 		-State $State `
 		-FilePath $FilePath `
 		-OutputUnpackedAssemblyDirectoryPath $OutputUnpackedAssemblyDirectoryPath `
@@ -7004,6 +7008,7 @@ try
 	Write-PackageWithPatchedResources `
 		-UnpatchedResources $ResourcesToPatch `
 		-UnpatchedResourcesByPackage $ResourcesToPatchByPackage `
+		-ResolvedResourcesPriorities $ResolvedResourcesPriorities `
 		-State $PatchingState `
 		-FilePath $GeneratedPackageFilePath `
 		-OutputUnpackedAssemblyDirectoryPath $OutputUnpackedAssemblyDirectoryPath `
