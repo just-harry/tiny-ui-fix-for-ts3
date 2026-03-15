@@ -6661,16 +6661,15 @@ try
 		{
 			if (-not (Test-RequiredDBPFManipulationTypesAreLoaded))
 			{
-				if ($IsWindowsOrMacOS)
+				if (Read-YesOrNo "To manipulate Sims 3 package files this program requires a library with an S3PI-compatible interface: no such library was found on this computer.$([Environment]::NewLine)Would you like to download S3PI by Peter Jones (https://s3pi.sourceforge.net) now?")
 				{
-					if (Read-YesOrNo "To manipulate Sims 3 package files this program requires a library with an S3PI-compatible interface: no such library was found on this computer.$([Environment]::NewLine)Would you like to download S3PI by Peter Jones (https://s3pi.sourceforge.net) now?")
-					{
-						$BinariesPath = Join-Path $PSScriptRoot Binaries
-						$7zCommandNames = if ($IsWindows) {'7zr', '7z'} else {'7zz'}
-						$7z = $Null
+					$BinariesPath = Join-Path $PSScriptRoot Binaries
+					$7zCommandNames = if ($IsMacOS) {'7zz'} else {'7zr', '7z'} <# Linux uses 7zr/7z too #>
+					$7z = $Null
 
-						if ($Null -eq $7zCommandNames.Where({Test-Path -LiteralPath ($7z = Join-Path $BinariesPath $_)}, 'First')[0] -and $Null -eq $7zCommandNames.Where({($7z = (Get-Command $_ -ErrorAction Ignore).Source)}, 'First')[0])
-						{
+					if ($Null -eq $7zCommandNames.Where({Test-Path -LiteralPath ($7z = Join-Path $BinariesPath $_)}, 'First')[0] -and $Null -eq $7zCommandNames.Where({($7z = (Get-Command $_ -ErrorAction Ignore).Source)}, 'First')[0])
+					{
+						if ($IsWindowsOrMacOS){
 							if (Read-YesOrNo "7-zip is required to extract a downloaded copy of S3PI by Peter Jones: 7-zip was not found on this computer.$([Environment]::NewLine)Would you like to download 7-zip by Igor Pavlov (https://www.7-zip.org) now?")
 							{
 								if ($IsWindows)
@@ -6691,26 +6690,26 @@ try
 									}
 								}
 
+								<# Linux has no Unblock-File command implemented because it is not needed #>
 								Unblock-File -LiteralPath $7z
 							}
 						}
-
-						$DBPFPath = Join-Path $BinariesPath DBPF
-						New-Item -ItemType Directory -Force -Path $DBPFPath > $Null
-
-						Use-FileWhatIsDownloadedIfNecessary $S3PIByPeterJonesFileDescription $DBPFPath `
-						{
-							Param ($File, $Description)
-
-							& $7z x "-o$DBPFPath" -- $File.FullName > $Null
-
-							Find-DBPFManipulationAssemblies $DBPFPath | % {Add-Type -LiteralPath $_.FullName}
+						else{
+							Write-Host "To manipulate Sims 3 package files this program requires 7zip to be already installed on a Linux or ChromeOS host: It was not found on this computer.$([Environment]::NewLine)Please install 7zip via your package manager and run this program again."
 						}
 					}
-				}
-				else
-				{
-					Write-Host "To manipulate Sims 3 package files this program requires a library with an S3PI-compatible interface: no such library was found on this computer.$([Environment]::NewLine)This program would offer to download S3PI by Peter Jones (https://s3pi.sourceforge.net) for you, but that feature is implemented only for Windows and macOS."
+
+					$DBPFPath = Join-Path $BinariesPath DBPF
+					New-Item -ItemType Directory -Force -Path $DBPFPath > $Null
+
+					Use-FileWhatIsDownloadedIfNecessary $S3PIByPeterJonesFileDescription $DBPFPath `
+					{
+						Param ($File, $Description)
+
+						& $7z x "-o$DBPFPath" -- $File.FullName > $Null
+
+						Find-DBPFManipulationAssemblies $DBPFPath | % {Add-Type -LiteralPath $_.FullName}
+					}
 				}
 			}
 		}
