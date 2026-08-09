@@ -774,21 +774,135 @@ function Get-Sims3InstallationStateOnWindows ($OverrideSims3Path, $OverrideSims3
 		{
 			Param ($Locale)
 
-			$Sims3UserDataPathBase = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) 'Electronic Arts'
+			# Resolve the localized Sims 3 user-data directory name.
+			$BaseGameLocale = $Null
 
-			$BaseGameLocale = if ($Null -ne $Locale) {[TinyUIFixPSForTS3]::Sims3LocalesByID[$Locale]}
-			if ($Null -eq $BaseGameLocale) {$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID['en-US']}
+			if ($Null -ne $Locale)
+			{
+				$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID[$Locale]
+			}
 
-			$Path = Join-Path $Sims3UserDataPathBase $BaseGameLocale.UserDataDirectoryName
-			if (-not (Test-Path -PathType Container -LiteralPath $Path)) {$Path = Join-Path $Sims3UserDataPathBase 'The Sims 3'}
-			$Path
+			if ($Null -eq $BaseGameLocale)
+			{
+				$BaseGameLocale = [TinyUIFixPSForTS3]::Sims3LocalesByID['en-US']
+			}
+
+			$LocalizedDirectoryName = $BaseGameLocale.UserDataDirectoryName
+
+			# Build a list of possible Documents directories.
+			$DocumentRoots = @()
+
+			# Normal Windows / Wine My Documents.
+			$MyDocuments = [Environment]::GetFolderPath(
+				[Environment+SpecialFolder]::MyDocuments
+			)
+
+			if (-not [String]::IsNullOrWhiteSpace($MyDocuments))
+			{
+				$DocumentRoots += $MyDocuments
+			}
+
+			# Current Wine/Windows user's Documents.
+			if (-not [String]::IsNullOrWhiteSpace($env:USERPROFILE))
+			{
+				$DocumentRoots += (Join-Path $env:USERPROFILE 'Documents')
+			}
+
+			# Public Documents.
+			if (-not [String]::IsNullOrWhiteSpace($env:PUBLIC))
+			{
+				$DocumentRoots += (Join-Path $env:PUBLIC 'Documents')
+			}
+
+			# Wine commonly exposes this path even when $env:PUBLIC is absent.
+			$DocumentRoots += 'C:\users\Public\Documents'
+
+			# Remove duplicates.
+			$DocumentRoots = @(
+				$DocumentRoots |
+				Where-Object {
+					-not [String]::IsNullOrWhiteSpace($_)
+				} |
+				Select-Object -Unique
+			)
+
+			# Possible TS3 folder names.
+			$DirectoryNames = @(
+				$LocalizedDirectoryName
+				'The Sims 3'
+			)
+
+			$DirectoryNames = @(
+				$DirectoryNames |
+				Where-Object {
+					-not [String]::IsNullOrWhiteSpace($_)
+				} |
+				Select-Object -Unique
+			)
+
+			# Remember the first existing folder in case no Options.ini exists.
+			$FirstExistingCandidate = $Null
+
+			foreach ($DocumentsPath in $DocumentRoots)
+			{
+				$ElectronicArtsPath = Join-Path $DocumentsPath 'Electronic Arts'
+
+				foreach ($DirectoryName in $DirectoryNames)
+				{
+					$Candidate = Join-Path $ElectronicArtsPath $DirectoryName
+
+					if (-not (Test-Path -LiteralPath $Candidate -PathType Container))
+					{
+						continue
+					}
+
+					if ($Null -eq $FirstExistingCandidate)
+					{
+						$FirstExistingCandidate = $Candidate
+					}
+
+					# An existing Options.ini strongly identifies the active
+					# Sims 3 user-data directory.
+					$OptionsPath = Join-Path $Candidate 'Options.ini'
+
+					if (Test-Path -LiteralPath $OptionsPath -PathType Leaf)
+					{
+						return ([IO.DirectoryInfo] $Candidate).FullName
+					}
+				}
+			}
+
+			# No Options.ini was found, but a plausible TS3 directory exists.
+			if ($Null -ne $FirstExistingCandidate)
+			{
+				return ([IO.DirectoryInfo] $FirstExistingCandidate).FullName
+			}
+
+			# Preserve the original Tiny UI Fix behaviour as the final fallback.
+			if (-not [String]::IsNullOrWhiteSpace($MyDocuments))
+			{
+				$FallbackDocuments = $MyDocuments
+			}
+			else
+			{
+				$FallbackDocuments = 'C:\users\Public\Documents'
+			}
+
+			$FallbackElectronicArts = Join-Path $FallbackDocuments 'Electronic Arts'
+
+			return (Join-Path $FallbackElectronicArts $LocalizedDirectoryName)
 		}
 	}
 	else
 	{
 		{
 			Param ($Locale)
-			([IO.DirectoryInfo] $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OverrideSims3UserDataPath)).FullName
+
+			$ResolvedUserDataPath = $Global:ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath(
+				$OverrideSims3UserDataPath
+			)
+
+			return ([IO.DirectoryInfo] $ResolvedUserDataPath).FullName
 		}
 	}
 
@@ -1818,13 +1932,15 @@ class TinyUIFixPSForTS3
 	}
 
 
-	static [Collections.Generic.IEnumerable[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] ExtractDirectivesFromResourceCFGAtPath (
+	static [Collections.Generic.List[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] ExtractDirectivesFromResourceCFGAtPath (
 		[String] $FilePath
 	)
 	{
 		if (Test-Path -LiteralPath $FilePath)
 		{
-			return [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG([String[]] (Get-Content -LiteralPath $FilePath -ErrorAction Stop))
+			return [TinyUIFixPSForTS3]::ExtractDirectivesFromResourceCFG(
+				[String[]] (Get-Content -LiteralPath $FilePath -ErrorAction Stop)
+			)
 		}
 		else
 		{
@@ -1832,30 +1948,33 @@ class TinyUIFixPSForTS3
 		}
 	}
 
-
-	static [Collections.Generic.IEnumerable[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] ExtractDirectivesFromResourceCFG (
+	static [Collections.Generic.List[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]] ExtractDirectivesFromResourceCFG (
 		[Collections.Generic.IEnumerable[String]] $CFGLines
 	)
 	{
-		return [ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object][]] $(
-			$Priority = 0
-			# Without this totally redundant assignment, `$Lines.MoveNext()` fails with a `System.Management.Automation.PSInvalidCastException`.
-			$CFGLines = $CFGLines
-			$Lines = $CFGLines.GetEnumerator()
+		$Result = [Collections.Generic.List[
+			ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]
+		]]::new()
 
-			while ($Lines.MoveNext())
+		$CFGLines = $CFGLines
+		$Lines = $CFGLines.GetEnumerator()
+
+		while ($Lines.MoveNext())
+		{
+			$Match = [TinyUIFixPSForTS3]::ResourceCFGLineRegEx.Match($Lines.Current)
+
+			if ($Match.Success)
 			{
-				$Match = [TinyUIFixPSForTS3]::ResourceCFGLineRegEx.Match($Lines.Current)
-
-				if ($Match.Success)
-				{
+				$Result.Add(
 					[ValueTuple[TinyUIFixForTS3ResourceCFGDirective, Object]]::new(
 						[TinyUIFixPSForTS3]::ResourceCFGDirectiveMap[$Match.Groups[1].Value],
 						$(if ($Match.Groups[2].Success) {$Match.Groups[2].Value} else {$Null})
 					)
-				}
+				)
 			}
-		)
+		}
+
+		return $Result
 	}
 
 
@@ -6256,7 +6375,10 @@ try
 
 		$InstallationState = if ($Script:IsWindows)
 		{
-			$State = Get-Sims3InstallationStateOnWindows
+			$State = Get-Sims3InstallationStateOnWindows `
+				-OverrideSims3Path $OverrideSims3Path `
+				-OverrideSims3UserDataPath $OverrideSims3UserDataPath `
+				-OverrideSims3GamePackPaths $OverrideSims3GamePackPaths
 
 			if ($Null -ne $State.RegistryVersion -and $Null -ne $State.SteamVersion)
 			{
