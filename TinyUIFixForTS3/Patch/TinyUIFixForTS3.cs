@@ -1302,6 +1302,7 @@ namespace TinyUIFixForTS3.UI
 		public void HandleAttachOfActualScrollbar (WindowBase sender, UIEventArgs eventArgs)
 		{
 			this.actualParent = this.actualScrollbar.Parent;
+			EventRegistrationChangeEvents.registerEventRegistrationChangeEventHandler(this.actualScrollbar.WinHandle, this.HandleEventRegistrationChangeForActualScrollbar);
 		}
 
 		public void HandleDetachOfActualScrollbar (WindowBase sender, UIEventArgs eventArgs)
@@ -1312,6 +1313,7 @@ namespace TinyUIFixForTS3.UI
 			}
 
 			this.actualParent = null;
+			EventRegistrationChangeEvents.deregisterEventRegistrationChangeEventHandler(this.actualScrollbar.WinHandle, this.HandleEventRegistrationChangeForActualScrollbar);
 		}
 
 		public void HandleTextEditTick (WindowBase sender, UIEventArgs eventArgs)
@@ -2661,11 +2663,13 @@ namespace TinyUIFixForTS3.UI
 		public void HandleAttachOfActualSlider (WindowBase sender, UIEventArgs eventArgs)
 		{
 			this.actualParent = this.actualSlider.Parent;
+			EventRegistrationChangeEvents.registerEventRegistrationChangeEventHandler(this.actualSlider.WinHandle, this.HandleEventRegistrationChangeForActualSlider);
 		}
 
 		public void HandleDetachOfActualSlider (WindowBase sender, UIEventArgs eventArgs)
 		{
 			this.actualParent = null;
+			EventRegistrationChangeEvents.deregisterEventRegistrationChangeEventHandler(this.actualSlider.WinHandle, this.HandleEventRegistrationChangeForActualSlider);
 		}
 
 		public void MimicAreaOfActualSliderOnChangeOfArea (WindowBase sender, UIAreaChangeEventArgs eventArgs)
