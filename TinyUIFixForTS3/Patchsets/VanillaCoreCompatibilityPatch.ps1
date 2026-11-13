@@ -127,7 +127,7 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 						('System.Void Sims3.UI.CustomContentIcon::UpdateSize()', @{StaticFields = 'kCutoffHeight', 'kTinyCutoffHeight'}),
 						('System.Void Sims3.UI.FriendProfileController::.ctor(System.Int64)', @{Floats = 25, 125}),
 						('System.Void Sims3.UI.FriendProfileController::ShowIndividualPost(System.Object)', @{Floats = 111}),
-						('System.Void Sims3.UI.GameEntry.MainMenu::PopulateWorldFileComboBox()', @{Floats = 15, 27, 205, 227}),
+						('System.Void Sims3.UI.GameEntry.MainMenu::PopulateWorldFileComboBox()', @{Floats = 27, 205, 227}),
 						('System.Void Sims3.UI.GameEntry.MainMenu::UpdateFsiWorldPurchaseVisibility()', @{Floats = 40}),
 						('System.Void Sims3.UI.GenieWishSelectionDialog::.ctor(System.Collections.Generic.List`1<Sims3.UI.Hud.IGenieWish>)', @{Floats = 50}),
 						('System.Void Sims3.UI.Hud.AdventureRewardsShopDialog::.ctor()', @{Floats = 50}),
@@ -371,7 +371,7 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 						('System.Void Sims3.Gameplay.CelebritySystem.NameDrop/Definition::PopulatePieMenuPicker(Sims3.Gameplay.Interactions.InteractionInstanceParameters&,System.Collections.Generic.List`1<Sims3.UI.ObjectPicker/TabInfo>&,System.Collections.Generic.List`1<Sims3.UI.ObjectPicker/HeaderInfo>&,System.Int32&)', @{Integers = 120}),
 
 						<# Why is this in GameplaySystems? EA, what are you doing? #>
-						('System.Void Sims3.Gameplay.UI.MovingWorldDialog::PopulateWorldFileComboBox()', @{Floats = 15, 27, 205, 227}),
+						('System.Void Sims3.Gameplay.UI.MovingWorldDialog::PopulateWorldFileComboBox()', @{Floats = 27, 205, 227}),
 
 						<# You already have a colour-picker in UI! EA, what are you doing?! #>
 						('System.Boolean Sims3.Gameplay.UI.ColorWheelSelector::UpdateSelectorPosition()', @{Floats = 10}),
