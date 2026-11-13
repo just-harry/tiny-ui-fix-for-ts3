@@ -6291,7 +6291,10 @@ try
 		}
 		elseif ($Script:IsMacOS)
 		{
-			$State = Get-Sims3InstallationStateOnMacOS
+			$State = Get-Sims3InstallationStateOnMacOS `
+				-OverrideSims3Path $OverrideSims3Path `
+				-OverrideSims3UserDataPath $OverrideSims3UserDataPath `
+				-OverrideSims3GamePackPaths $OverrideSims3GamePackPaths
 
 			if ($Null -ne $State.'64BitVersion' -and $Null -ne $State.'32BitVersion')
 			{
@@ -6326,7 +6329,10 @@ try
 		}
 		else
 		{
-			Get-Sims3InstallationStateOnOtherOperatingSystems
+			Get-Sims3InstallationStateOnOtherOperatingSystems `
+				-OverrideSims3Path $OverrideSims3Path `
+				-OverrideSims3UserDataPath $OverrideSims3UserDataPath `
+				-OverrideSims3GamePackPaths $OverrideSims3GamePackPaths
 		}
 
 		if ($Null -eq $InstallationState)
