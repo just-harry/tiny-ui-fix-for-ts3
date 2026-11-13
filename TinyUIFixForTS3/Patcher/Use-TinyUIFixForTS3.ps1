@@ -5571,13 +5571,25 @@ function New-PatchingState ($InstallationState)
 
 function Test-Sims3Path ($Sims3Path, [TinyUIFixForTS3Sims3InstallationType] $InstallationType)
 {
-	$Null -ne $Sims3Path -and (Test-Path -LiteralPath (Join-Path $Sims3Path $(if ($InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin -or $InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'})))
+	<# `Join-Path` fails for paths with a drive that doesn't exist (such as `"C:`, when the path is quoted), so such paths are treated as incorrect, instead. #>
+	-not [String]::IsNullOrWhiteSpace($Sims3Path) `
+	-and $Null -ne ($ResourceCFGPath = Join-Path $Sims3Path $(if ($InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitOrigin -or $InstallationType -eq [TinyUIFixForTS3Sims3InstallationType]::MacOS64BitEAApp) {'Contents/Resources/Resource.cfg'} else {'Game/Bin/Resource.cfg'}) -ErrorAction Ignore) `
+	-and (Test-Path -LiteralPath $ResourceCFGPath -ErrorAction Ignore)
 }
 
 
 function Test-Sims3UserDataPath ($Sims3UserDataPath)
 {
-	$Null -ne $Sims3UserDataPath -and (Test-Path -LiteralPath (Join-Path $Sims3UserDataPath Options.ini))
+	-not [String]::IsNullOrWhiteSpace($Sims3UserDataPath) `
+	-and $Null -ne ($OptionsINIPath = Join-Path $Sims3UserDataPath Options.ini -ErrorAction Ignore) `
+	-and (Test-Path -LiteralPath $OptionsINIPath -ErrorAction Ignore)
+}
+
+
+function Remove-QuotesFromPromptedPath ([String] $Path)
+{
+	<# Paths copied via "Copy as path" in File Explorer, or dragged into a terminal, are surrounded by quotes. #>
+	$Path.Trim().Trim('"', "'")
 }
 
 
@@ -6394,7 +6406,7 @@ try
 
 				for (;;)
 				{
-					$InstallationState.BaseGame.Path = Read-Host "Please supply the file-path of your Sims 3 installation. To clarify, this should be the path for the folder that the game is installed in, not the folder that mods are installed in. (It is usually a folder named `"The Sims 3`"$(if ($IsWindows) {', probably somewhere in the "Program Files (x86)" folder'} elseif ($IsMacOS) {', probably somewhere in the "~/Applications" or "/Applications" folders'}))"
+					$InstallationState.BaseGame.Path = Remove-QuotesFromPromptedPath (Read-Host "Please supply the file-path of your Sims 3 installation. To clarify, this should be the path for the folder that the game is installed in, not the folder that mods are installed in. (It is usually a folder named `"The Sims 3`"$(if ($IsWindows) {', probably somewhere in the "Program Files (x86)" folder'} elseif ($IsMacOS) {', probably somewhere in the "~/Applications" or "/Applications" folders'}))")
 
 					if ([String]::IsNullOrWhiteSpace($InstallationState.BaseGame.Path))
 					{}
@@ -6430,7 +6442,21 @@ try
 
 			if (-not (Test-Sims3UserDataPath $InstallationState.Sims3UserDataPath))
 			{
-				$InstallationState.Sims3UserDataPath = Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)'
+				for (;;)
+				{
+					$InstallationState.Sims3UserDataPath = Remove-QuotesFromPromptedPath (Read-Host 'The file-path of your user-data folder for The Sims 3 could not be automatically found, please supply the file-path of your user-data folder for The Sims 3. (It is usually a folder named "The Sims 3", and is where mods are typically installed)')
+
+					if ([String]::IsNullOrWhiteSpace($InstallationState.Sims3UserDataPath))
+					{}
+					elseif (-not (Test-Path -LiteralPath $InstallationState.Sims3UserDataPath -PathType Container -ErrorAction Ignore))
+					{
+						Write-Warning "That path doesn't seem correct, as no folder could be found at that path."
+					}
+					else
+					{
+						break
+					}
+				}
 
 				if (-not (Test-Sims3UserDataPath $InstallationState.Sims3UserDataPath))
 				{
