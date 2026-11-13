@@ -491,38 +491,44 @@ ${If it's Christmas!} = $($Now = [DateTime]::Now; if ($Now.Month -eq 12 -and $No
 				[Mono.Cecil.Cil.Instruction]::Create([Mono.Cecil.Cil.OpCodes]::Mul)
 			}
 
-			Edit-MethodBody (Find-MethodByFullyQualifiedName $UI.MainModule 'System.Void Sims3.UI.TableContainer::UpdateGridSize()') `
+			$UpdateGridSize = Find-MethodByFullyQualifiedName $UI.MainModule 'System.Void Sims3.UI.TableContainer::UpdateGridSize()'
+
+			<# `TableContainer::UpdateGridSize` doesn't exist in older patch-levels of the game (such as an unpatched retail installation). #>
+			if ($Null -ne $UpdateGridSize)
 			{
-				do
+				Edit-MethodBody $UpdateGridSize `
 				{
-					if ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldfld -and $Instruction.Operand.FullName -ceq 'System.Boolean Sims3.UI.TableContainer::mbAddColumnDivider')
+					do
 					{
-						$LoadsMbAddColumnDivider = $Instruction
-
-						if ($LoadsMbAddColumnDivider.Next.OpCode.FlowControl -eq [Mono.Cecil.Cil.FlowControl]::Cond_Branch)
+						if ($Instruction.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Ldfld -and $Instruction.Operand.FullName -ceq 'System.Boolean Sims3.UI.TableContainer::mbAddColumnDivider')
 						{
-							$Branch = $LoadsMbAddColumnDivider.Next
+							$LoadsMbAddColumnDivider = $Instruction
 
-							if (Test-InstructionIsLdcI4 $Branch.Next -OfAnyOf 0, 1)
+							if ($LoadsMbAddColumnDivider.Next.OpCode.FlowControl -eq [Mono.Cecil.Cil.FlowControl]::Cond_Branch)
 							{
-								$LoadsInteger = $Branch.Next
+								$Branch = $LoadsMbAddColumnDivider.Next
 
-								if ($LoadsInteger.Next.OpCode.FlowControl -eq [Mono.Cecil.Cil.FlowControl]::Branch)
+								if (Test-InstructionIsLdcI4 $Branch.Next -OfAnyOf 0, 1)
 								{
-									$Jump = $LoadsInteger.Next
+									$LoadsInteger = $Branch.Next
 
-									if ($Jump.Operand.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Conv_R4)
+									if ($LoadsInteger.Next.OpCode.FlowControl -eq [Mono.Cecil.Cil.FlowControl]::Branch)
 									{
-										$AfterConditional = $Jump.Operand
+										$Jump = $LoadsInteger.Next
 
-										$Instruction = & $ScaleFloatOnStack | Append-Instruction -To $AfterConditional -IL $IL
+										if ($Jump.Operand.OpCode.Code -eq [Mono.Cecil.Cil.Code]::Conv_R4)
+										{
+											$AfterConditional = $Jump.Operand
+
+											$Instruction = & $ScaleFloatOnStack | Append-Instruction -To $AfterConditional -IL $IL
+										}
 									}
 								}
 							}
 						}
 					}
+					while ($Instruction = $Instruction.Next)
 				}
-				while ($Instruction = $Instruction.Next)
 			}
 
 			<# For some reason, when the store notifications that this method adds are dismissed
