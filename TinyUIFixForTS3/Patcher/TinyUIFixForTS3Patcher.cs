@@ -166,6 +166,18 @@ namespace TinyUIFixForTS3Patcher
 			);
 		}
 
+		public static Vector4 RoundToWholePixels (Vector4 area)
+		{
+			/* Rounds halves up rather than to even, so both edges of an area move the same way and its size stays the
+			   same. */
+			return new Vector4(
+				(float) Math.Floor(area.X + 0.5f),
+				(float) Math.Floor(area.Y + 0.5f),
+				(float) Math.Floor(area.Z + 0.5f),
+				(float) Math.Floor(area.W + 0.5f)
+			);
+		}
+
 		public struct LayoutWinProc
 		{
 			public enum Type : byte
@@ -1128,7 +1140,9 @@ namespace TinyUIFixForTS3Patcher
 				if (area != null)
 				{
 					XmlNode areaValue = area.Attributes.GetNamedItem("value");
-					areaValue.Value = ScaleAreaStringBy(areaValue.Value, multiplier);
+					/* Window areas are rounded to whole pixels: at scales like 1.5 an odd coordinate lands exactly on a half
+					   pixel, and text drawn from there is snapped up or down glyph by glyph, which makes it look uneven. */
+					areaValue.Value = AreaToString(RoundToWholePixels(ScaleAreaBy(AreaFromString(areaValue.Value), multiplier)));
 				}
 
 				if (winProcs != null)
